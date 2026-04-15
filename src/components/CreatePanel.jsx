@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { useTasksContext } from '../context/TasksContext';
-import { useMembers } from '../hooks/useMembers';
 import { STATUSES, PRIORITIES } from '../data/constants';
 import { databases, DATABASE_ID, COLLECTIONS, ID } from '../lib/appwrite';
 
 export default function CreatePanel() {
-  const { createPanelConfig, closeCreatePanel, workspace, user, refreshData } = useAppContext();
+  const { createPanelConfig, closeCreatePanel, workspace, user, refreshData, members } = useAppContext();
   const { groups, createTask, createGroup } = useTasksContext();
-  const { members } = useMembers(workspace?.id);
 
   const [form, setForm] = useState({
     title: '', name: '', description: '', status: 'todo', priority: 'medium',

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppContext } from './context/AppContext';
 import { TasksProvider } from './context/TasksContext';
 import AuthScreen from './components/AuthScreen';
+import logo from './assets/logo.png';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
 import TaskModal from './components/TaskModal';
@@ -55,7 +56,7 @@ function WorkspaceOnboarding({ user, onCreated }) {
         DATABASE_ID,
         COLLECTIONS.PROJECTS,
         ID.unique(),
-        { workspace_id: workspace.$id, name: 'Getting Started', emoji: '📋', created_by: user.$id }
+        { workspace_id: workspace.$id, name: 'Getting Started', created_by: user.$id }
       );
 
       // 4. Create default group
@@ -73,7 +74,7 @@ function WorkspaceOnboarding({ user, onCreated }) {
         ID.unique(),
         {
           group_id: group.$id,
-          title: 'Welcome to HuddleUp! 🚀',
+          title: 'Welcome to HuddleUp!',
           description: 'Try clicking on this task to see details, or add a new one below.',
           created_by: user.$id
         }
@@ -91,7 +92,7 @@ function WorkspaceOnboarding({ user, onCreated }) {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[150] p-4">
       <div className="bg-background-surface border-2 border-border-default shadow-[8px_8px_0px_var(--shadow-color)] p-8 w-full max-w-[440px]">
-        <img src="/src/assets/logo.png" alt="HuddleUp" className="w-10 h-10 mb-5 object-contain" />
+        <img src={logo} alt="HuddleUp" className="w-10 h-10 mb-5 object-contain" />
         <h2 className="text-xl font-black uppercase tracking-tight text-text-primary mb-1">Create your workspace</h2>
         <p className="text-sm font-medium text-text-muted mb-6">Give your team a name to get started.</p>
 

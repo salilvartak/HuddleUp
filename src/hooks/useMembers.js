@@ -19,28 +19,32 @@ export const useMembers = (workspaceId) => {
         [Query.equal('workspace_id', workspaceId)]
       );
 
-      // Profiles live in a separate collection — fetch them in parallel
-      const membersData = await Promise.all(
-        response.documents.map(async (doc) => {
-          try {
-            const profileDoc = await databases.getDocument(
-              DATABASE_ID, COLLECTIONS.PROFILES, doc.user_id
-            );
-            return { ...doc, id: doc.$id, profile: profileDoc };
-          } catch {
-            // Profile missing — use a basic fallback so avatars still render
-            return {
-              ...doc,
-              id: doc.$id,
-              profile: {
-                name: doc.user_id.slice(0, 8),
-                email: '',
-                avatar_initials: doc.user_id.slice(0, 2).toUpperCase(),
-              },
-            };
+      const userIds = response.documents.map(doc => doc.user_id);
+      
+      // Fetch all matching profiles in a single bulk query
+      const profilesResponse = userIds.length > 0 
+        ? await databases.listDocuments(
+            DATABASE_ID, 
+            COLLECTIONS.PROFILES, 
+            [Query.equal('$id', userIds)]
+          )
+        : { documents: [] };
+
+      const profileMap = profilesResponse.documents.reduce((acc, p) => ({ ...acc, [p.$id]: p }), {});
+
+      const membersData = response.documents.map((doc) => {
+        const profileDoc = profileMap[doc.user_id];
+        return {
+          ...doc,
+          id: doc.$id,
+          profile: profileDoc || {
+            name: doc.user_id.slice(0, 8),
+            email: '',
+            avatar_initials: doc.user_id.slice(0, 2).toUpperCase(),
+            color: '#3b82f6'
           }
-        })
-      );
+        };
+      });
 
       setMembers(membersData);
     } catch (error) {

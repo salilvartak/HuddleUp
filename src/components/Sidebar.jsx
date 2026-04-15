@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { useTasksContext } from '../context/TasksContext';
 import { Avatar } from './Badges';
-import { useMembers } from '../hooks/useMembers';
+import logo from '../assets/logo.png';
 
 export default function Sidebar() {
   const {
@@ -11,11 +11,11 @@ export default function Sidebar() {
     view, setView, mode, setMode, setShowInviteModal,
     showConfirm, deleteProject, openCreatePanel,
     isDark, toggleTheme, setShowSearch,
-    user, profile, setShowProfileModal
+    user, profile, setShowProfileModal,
+    members
   } = useAppContext();
 
   const { groups } = useTasksContext();
-  const { members } = useMembers(workspace?.id);
   const [expandedProjects, setExpandedProjects] = useState({});
   const [sidebarWidth, setSidebarWidth] = useState(240);
   const [isResizing, setIsResizing] = useState(false);
@@ -73,7 +73,7 @@ export default function Sidebar() {
     return (
       <div className="w-14 h-screen bg-background-surface border-r-2 border-border-default flex flex-col items-center py-4 gap-3 z-50">
         <button onClick={() => setSidebarCollapsed(false)} className="w-8 h-8 border-2 border-border-default flex items-center justify-center font-black text-text-secondary hover:bg-background-hover transition-colors text-lg">›</button>
-        <img src="/src/assets/logo.png" alt="T" className="w-8 h-8 object-contain" />
+        <img src={logo} alt="T" className="w-8 h-8 object-contain" />
         <div className="flex flex-col gap-2 mt-4">
           {projects.slice(0, 5).map(p => (
             <button key={p.id} onClick={() => { setSelectedProjectId(p.id); setMode('project'); setView('list'); }}
@@ -100,7 +100,7 @@ export default function Sidebar() {
     >
       <div className="h-14 flex items-center justify-between px-4 border-b-2 border-border-default shrink-0">
         <div className="flex items-center gap-2.5 overflow-hidden">
-          <img src="/src/assets/logo.png" alt="T" className="w-7 h-7 object-contain shrink-0" />
+          <img src={logo} alt="T" className="w-7 h-7 object-contain shrink-0" />
           <span className="text-sm font-black truncate text-text-primary uppercase tracking-tight">{workspace?.name || 'HuddleUp'}</span>
         </div>
         <button onClick={() => setSidebarCollapsed(true)} className="w-7 h-7 border-2 border-border-default flex items-center justify-center font-black text-text-secondary hover:bg-background-hover transition-colors shrink-0">‹</button>

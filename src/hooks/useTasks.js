@@ -14,80 +14,111 @@ export const useTasks = (projectId) => {
   const suppressRealtimeRef = useRef(false);
   const suppressTimerRef = useRef(null);
 
+  const lastFetchIdRef = useRef(0);
   const fetchTasks = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+    const fetchId = ++lastFetchIdRef.current;
+    
+    // Clear state before fetching a new project to avoid "ghost" data
+    if (!silent) {
+      setLoading(true);
+      setTasks([]);
+      setGroups([]);
+      setActivities([]);
+    }
+    
     try {
-      let tasksData = [];
-      let groupsData = [];
-
       if (projectId) {
+        // Fetch Groups first
         const groupsResponse = await databases.listDocuments(
           DATABASE_ID,
           COLLECTIONS.GROUPS,
-          [Query.equal('project_id', projectId), Query.orderAsc('position')]
+          [Query.equal('project_id', [projectId]), Query.orderAsc('position')]
         );
-        groupsData = groupsResponse.documents.map(doc => ({ ...doc, id: doc.$id }));
+
+        // Race condition check: only proceed if this is still the latest fetch
+        if (fetchId !== lastFetchIdRef.current) return;
+
+        const groupsData = groupsResponse.documents.map(doc => ({ ...doc, id: doc.$id }));
         setGroups(groupsData);
 
-        const groupIds = groupsData.map(g => g.id);
-        if (groupIds.length > 0) {
+        let finalTasks = [];
+        if (groupsData.length > 0) {
+          const groupIds = groupsData.map(g => g.id);
           const tasksResponse = await databases.listDocuments(
             DATABASE_ID,
             COLLECTIONS.TASKS,
-            [Query.equal('group_id', groupIds), Query.orderAsc('position')]
+            [Query.equal('group_id', groupIds), Query.orderAsc('position'), Query.limit(500)]
           );
-          tasksData = tasksResponse.documents;
+          
+          if (fetchId !== lastFetchIdRef.current) return;
+          finalTasks = tasksResponse.documents;
+        }
+
+        setTasks(finalTasks.map(doc => ({ ...doc, id: doc.$id })));
+        
+        // Background fetch activities
+        if (finalTasks.length > 0) {
+          const tIds = finalTasks.slice(0, 50).map(t => t.$id);
+          databases.listDocuments(
+            DATABASE_ID,
+            COLLECTIONS.ACTIVITY,
+            [Query.equal('task_id', tIds), Query.orderDesc('created_at'), Query.limit(50)]
+          ).then(res => {
+            if (fetchId === lastFetchIdRef.current) {
+              setActivities(res.documents.map(doc => ({ ...doc, id: doc.$id })));
+            }
+          }).catch(() => {});
         }
       } else {
-        // My Tasks
-        const user = await account.get();
-        const tasksResponse = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.TASKS,
-          [Query.equal('assignee_id', user.$id), Query.orderDesc('$createdAt')]
-        );
-        tasksData = tasksResponse.documents;
+        // ... (rest same)
+        let currentUser;
+        try { currentUser = await account.get(); } catch {
+          if (fetchId === lastFetchIdRef.current) setLoading(false);
+          return;
+        }
 
-        const activityResponse = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.ACTIVITY,
-          [Query.orderDesc('created_at'), Query.limit(50)]
-        );
+        const [tasksResponse, activityResponse] = await Promise.all([
+          databases.listDocuments(DATABASE_ID, COLLECTIONS.TASKS, [Query.equal('assignee_id', [currentUser.$id]), Query.orderDesc('$createdAt'), Query.limit(200)]),
+          databases.listDocuments(DATABASE_ID, COLLECTIONS.ACTIVITY, [Query.orderDesc('created_at'), Query.limit(20)])
+        ]);
+
+        if (fetchId !== lastFetchIdRef.current) return;
+
+        setTasks(tasksResponse.documents.map(doc => ({ ...doc, id: doc.$id })));
         setActivities(activityResponse.documents.map(doc => ({ ...doc, id: doc.$id })));
-        setGroups([]);
-        setComments([]);
       }
-
-      if (projectId && tasksData.length > 0) {
-        const tIds = tasksData.map(t => t.$id);
-
-        const activityResponse = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.ACTIVITY,
-          [Query.equal('task_id', tIds), Query.orderDesc('created_at'), Query.limit(100)]
-        );
-        setActivities(activityResponse.documents.map(doc => ({ ...doc, id: doc.$id })));
-
-        const commentsResponse = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.COMMENTS,
-          [Query.equal('task_id', tIds), Query.orderAsc('created_at'), Query.limit(200)]
-        );
-        setComments(commentsResponse.documents.map(doc => ({ ...doc, id: doc.$id })));
-      } else if (projectId) {
-        setActivities([]);
-        setComments([]);
-      }
-
-      setTasks(tasksData.map(doc => ({ ...doc, id: doc.$id })));
     } catch (error) {
       console.error('Error fetching tasks:', error);
     } finally {
-      setLoading(false);
+      if (fetchId === lastFetchIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [projectId]);
 
+  const fetchComments = useCallback(async (taskId) => {
+    if (!taskId) return;
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.COMMENTS,
+        [Query.equal('task_id', taskId), Query.orderAsc('created_at'), Query.limit(100)]
+      );
+      const newComments = response.documents.map(doc => ({ ...doc, id: doc.$id }));
+      setComments(prev => {
+        const otherComments = prev.filter(c => c.task_id !== taskId);
+        return [...otherComments, ...newComments];
+      });
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    }
+  }, []);
+
   useEffect(() => {
+    // Clear current view data when switching projects to avoid stale UI
+    setTasks([]);
+    setGroups([]);
+    setActivities([]);
     fetchTasks();
   }, [fetchTasks]);
 
@@ -107,51 +138,34 @@ export const useTasks = (projectId) => {
     return () => unsubscribe();
   }, [projectId, fetchTasks]);
 
-  // Optimistically reorders tasks in local state and suppresses realtime briefly
-  // so the UI doesn't snap back while the API call propagates.
   const reorderTasks = useCallback((taskId, destGroupId, destIndex, srcGroupId) => {
     suppressRealtimeRef.current = true;
     clearTimeout(suppressTimerRef.current);
     suppressTimerRef.current = setTimeout(() => {
       suppressRealtimeRef.current = false;
-      // Re-sync after suppression window
       fetchTasks(true);
     }, 3000);
 
     setTasks(prev => {
       const dragged = prev.find(t => t.id === taskId);
       if (!dragged) return prev;
-
-      // All top-level tasks except the dragged one
       const rest = prev.filter(t => t.id !== taskId);
-
-      // Build the destination column's tasks in order, insert at destIndex
       const destColTasks = rest
         .filter(t => t.group_id === destGroupId && !t.parent_id)
         .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
       destColTasks.splice(destIndex, 0, { ...dragged, group_id: destGroupId });
-
-      // Recalculate positions for dest column
       const reorderedDest = destColTasks.map((t, i) => ({ ...t, position: i }));
-
-      // Rebuild: subtasks + tasks not in affected columns + reordered dest
       const subtasks = prev.filter(t => t.parent_id);
-      const others = rest.filter(t => t.group_id !== destGroupId && t.group_id !== srcGroupId && !t.parent_id);
-
       if (srcGroupId === destGroupId) {
+        const others = rest.filter(t => t.group_id !== destGroupId && !t.parent_id);
         return [...subtasks, ...others, ...reorderedDest];
       }
-
-      // Also re-index source column
       const srcColTasks = rest
         .filter(t => t.group_id === srcGroupId && !t.parent_id)
         .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
         .map((t, i) => ({ ...t, position: i }));
-
-      const othersExcludingSrc = rest.filter(
-        t => t.group_id !== destGroupId && t.group_id !== srcGroupId && !t.parent_id
-      );
-      return [...subtasks, ...othersExcludingSrc, ...srcColTasks, ...reorderedDest];
+      const others = rest.filter(t => t.group_id !== destGroupId && t.group_id !== srcGroupId && !t.parent_id);
+      return [...subtasks, ...others, ...srcColTasks, ...reorderedDest];
     });
   }, [fetchTasks]);
 
@@ -159,13 +173,11 @@ export const useTasks = (projectId) => {
     try {
       const user = await account.get();
       if (!user) return;
-
-      // Prefer the profile name (what the user set at signup) over the raw account name
       let actorName = user.name || user.email.split('@')[0];
       try {
         const profileDoc = await databases.getDocument(DATABASE_ID, COLLECTIONS.PROFILES, user.$id);
         if (profileDoc.name) actorName = profileDoc.name;
-      } catch { /* profile may not exist yet — use account name */ }
+      } catch { }
 
       await databases.createDocument(DATABASE_ID, COLLECTIONS.ACTIVITY, ID.unique(), {
         task_id: taskId,
@@ -203,7 +215,6 @@ export const useTasks = (projectId) => {
       const originalTask = tasks.find(t => t.id === taskId);
       const data = await databases.updateDocument(DATABASE_ID, COLLECTIONS.TASKS, taskId, updates);
       const formatted = { ...data, id: data.$id };
-
       if (originalTask) {
         if (updates.status && updates.status !== originalTask.status)
           await logActivity(taskId, `changed status to ${updates.status}`);
@@ -268,6 +279,34 @@ export const useTasks = (projectId) => {
     }
   };
 
+  const reorderGroups = useCallback(async (groupId, destIndex) => {
+    setGroups(prev => {
+      const dragged = prev.find(g => g.id === groupId);
+      if (!dragged) return prev;
+      const filtered = prev.filter(g => g.id !== groupId);
+      filtered.splice(destIndex, 0, dragged);
+      return filtered.map((g, i) => ({ ...g, position: i }));
+    });
+
+    suppressRealtimeRef.current = true;
+    try {
+      const current = groups.filter(g => g.id !== groupId);
+      current.splice(destIndex, 0, groups.find(g => g.id === groupId));
+      const reordered = current.map((g, i) => ({ ...g, position: i }));
+
+      await Promise.all(
+        reordered.map((g) =>
+          databases.updateDocument(DATABASE_ID, COLLECTIONS.GROUPS, g.id, { position: g.position })
+        )
+      );
+    } catch (e) {
+      console.error('Error reordering groups', e);
+      fetchTasks();
+    } finally {
+      setTimeout(() => { suppressRealtimeRef.current = false; }, 1000);
+    }
+  }, [groups, fetchTasks]);
+
   const addComment = async (taskId, text) => {
     try {
       const user = await account.get();
@@ -292,6 +331,7 @@ export const useTasks = (projectId) => {
     comments,
     loading,
     reorderTasks,
+    reorderGroups,
     createTask,
     updateTask,
     deleteTask,
@@ -299,6 +339,7 @@ export const useTasks = (projectId) => {
     updateGroup,
     deleteGroup,
     addComment,
+    fetchComments,
     refresh: fetchTasks,
   };
 };

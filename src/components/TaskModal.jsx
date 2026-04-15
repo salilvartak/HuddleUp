@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { useTasksContext } from '../context/TasksContext';
 import { StatusBadge, PriorityBadge, Avatar, StatusDropdown, PriorityDropdown, AssigneeDropdown } from './Badges';
-import { useMembers } from '../hooks/useMembers';
 
 const timeAgo = (iso) => {
   if (!iso) return '';
@@ -14,9 +13,8 @@ const timeAgo = (iso) => {
 };
 
 export default function TaskModal() {
-  const { activeTaskId, closeTask, openTask, selectedProjectId, workspace, projects, user, profile, showConfirm } = useAppContext();
-  const { tasks, groups, activities, comments, updateTask, createTask, deleteTask, addComment } = useTasksContext();
-  const { members } = useMembers(workspace?.id);
+  const { activeTaskId, closeTask, openTask, selectedProjectId, workspace, projects, user, profile, showConfirm, members } = useAppContext();
+  const { tasks, groups, activities, comments, updateTask, createTask, deleteTask, addComment, fetchComments } = useTasksContext();
 
   const task    = tasks.find(t => t.id === activeTaskId);
   const group   = groups.find(g => g.id === task?.group_id);
@@ -31,7 +29,11 @@ export default function TaskModal() {
   const [editingDesc,     setEditingDesc]     = useState(task?.description || '');
 
   React.useEffect(() => {
-    if (task) { setEditingTitle(task.title); setEditingDesc(task.description || ''); }
+    if (task) { 
+      setEditingTitle(task.title); 
+      setEditingDesc(task.description || ''); 
+      fetchComments(task.id);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.id]);
 

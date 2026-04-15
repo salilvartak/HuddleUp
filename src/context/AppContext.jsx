@@ -20,6 +20,8 @@ export const AppProvider = ({ children }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [members, setMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
 
   // Confirm dialog state — { title, message, onConfirm } | null
   const [confirmConfig, setConfirmConfig] = useState(null);
@@ -55,37 +57,78 @@ export const AppProvider = ({ children }) => {
       if (membership) {
         const workspaceId = membership.workspace_id || membership.workspace?.$id;
         if (workspaceId) {
-          const workspaceDoc = await databases.getDocument(DATABASE_ID, COLLECTIONS.WORKSPACES, workspaceId);
+          const [workspaceDoc, projectsResponse] = await Promise.all([
+            databases.getDocument(DATABASE_ID, COLLECTIONS.WORKSPACES, workspaceId),
+            databases.listDocuments(
+              DATABASE_ID, COLLECTIONS.PROJECTS,
+              [Query.equal('workspace_id', workspaceId), Query.orderAsc('position')]
+            )
+          ]);
+          
           setWorkspace({ ...workspaceDoc, id: workspaceDoc.$id });
+          
+          const initialProjects = projectsResponse.documents.map(doc => ({ 
+            ...doc, id: doc.$id, taskCount: 0 
+          }));
+          setProjects(initialProjects);
+          
+          // Fetch members
+          setLoadingMembers(true);
+          try {
+            const mRes = await databases.listDocuments(
+              DATABASE_ID, COLLECTIONS.WORKSPACE_MEMBERS,
+              [Query.equal('workspace_id', workspaceId)]
+            );
+            const uIds = mRes.documents.map(m => m.user_id);
+            const pRes = uIds.length > 0
+              ? await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [Query.equal('$id', uIds)])
+              : { documents: [] };
+            const pMap = pRes.documents.reduce((acc, p) => ({ ...acc, [p.$id]: p }), {});
+            setMembers(mRes.documents.map(m => ({
+              ...m,
+              id: m.$id,
+              profile: pMap[m.user_id] || { name: m.user_id.slice(0, 8), avatar_initials: m.user_id.slice(0, 2).toUpperCase(), color: '#3b82f6' }
+            })));
+          } catch (e) {
+            console.error('Error fetching members:', e);
+          } finally {
+            setLoadingMembers(false);
+          }
 
-          const projectsResponse = await databases.listDocuments(
-            DATABASE_ID, COLLECTIONS.PROJECTS,
-            [Query.equal('workspace_id', workspaceId), Query.orderAsc('position')]
-          );
+          // Auto-select first project if none selected and not already auto-selected
+          if (initialProjects.length > 0 && !selectedProjectId && !hasAutoSelectedRef.current) {
+            hasAutoSelectedRef.current = true;
+            setSelectedProjectId(initialProjects[0].id);
+            setMode('project'); // Ensure we are in project mode
+          }
+          
+          if (!silent) setLoading(false);
 
-          const projectsData = await Promise.all(projectsResponse.documents.map(async doc => {
+          // Fetch counts in background
+          Promise.all(initialProjects.map(async doc => {
             try {
               const groupsRes = await databases.listDocuments(
                 DATABASE_ID, COLLECTIONS.GROUPS,
-                [Query.equal('project_id', doc.$id)]
+                [Query.equal('project_id', [doc.id]), Query.limit(100)]
               );
               const gIds = groupsRes.documents.map(g => g.$id);
-              let taskCount = 0;
               if (gIds.length > 0) {
-                // Exclude subtasks (tasks with a parent_id) from the sidebar count
                 const tasksRes = await databases.listDocuments(
                   DATABASE_ID, COLLECTIONS.TASKS,
-                  [Query.equal('group_id', gIds), Query.isNull('parent_id'), Query.limit(1)]
+                  [Query.equal('group_id', gIds), Query.isNull('parent_id'), Query.limit(0)]
                 );
-                taskCount = tasksRes.total;
+                return { id: doc.id, taskCount: tasksRes.total };
               }
-              return { ...doc, id: doc.$id, taskCount };
+              return { id: doc.id, taskCount: 0 };
             } catch {
-              return { ...doc, id: doc.$id, taskCount: 0 };
+              return { id: doc.id, taskCount: 0 };
             }
-          }));
-
-          setProjects(projectsData);
+          })).then(counts => {
+            setProjects(prev => prev.map(p => {
+              const match = counts.find(c => c.id === p.id);
+              return match ? { ...p, taskCount: match.taskCount } : p;
+            }));
+          });
         }
       }
     } catch (error) {
@@ -93,13 +136,14 @@ export const AppProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, selectedProjectId]); // Added selectedProjectId to deps for auto-selection logic
 
   // Auto-select the first project once on initial load
   useEffect(() => {
     if (projects.length > 0 && !selectedProjectId && !hasAutoSelectedRef.current) {
       hasAutoSelectedRef.current = true;
       setSelectedProjectId(projects[0].id);
+      setMode('project');
     }
   }, [projects, selectedProjectId]);
 
@@ -147,6 +191,24 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const inviteMember = async (email, role) => {
+    if (!workspace) return { error: 'No workspace' };
+    try {
+      const data = await databases.createDocument(DATABASE_ID, COLLECTIONS.WORKSPACE_INVITES, ID.unique(), {
+        workspace_id: workspace.id,
+        email: email.toLowerCase(),
+        role,
+        invited_by: user?.$id,
+        accepted: false,
+        created_at: new Date().toISOString()
+      });
+      return { data: { ...data, id: data.$id, inviteLink: `${window.location.origin}/?inviteId=${data.$id}` }, error: null };
+    } catch (error) {
+      console.error('Error inviting member:', error);
+      return { data: null, error };
+    }
+  };
+
   const deleteProject = async (projectId) => {
     try {
       const groupsRes = await databases.listDocuments(
@@ -172,6 +234,18 @@ export const AppProvider = ({ children }) => {
       fetchWorkspaceData(true);
     } catch (error) {
       console.error('Error deleting project:', error);
+    }
+  };
+
+  const removeMember = async (memberId) => {
+    try {
+      await databases.deleteDocument(DATABASE_ID, COLLECTIONS.WORKSPACE_MEMBERS, memberId);
+      // Refresh members list
+      setMembers(prev => prev.filter(m => m.$id !== memberId));
+      return { error: null };
+    } catch (error) {
+      console.error('Error removing member:', error);
+      return { error };
     }
   };
 
@@ -214,6 +288,10 @@ export const AppProvider = ({ children }) => {
     toggleTheme,
     showSearch,
     setShowSearch,
+    members,
+    loadingMembers,
+    inviteMember,
+    removeMember,
   };
 
   return (

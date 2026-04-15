@@ -4,7 +4,6 @@ import { STATUSES } from '../data/constants';
 import { Avatar } from './Badges';
 import { useAppContext } from '../context/AppContext';
 import { useTasksContext } from '../context/TasksContext';
-import { useMembers } from '../hooks/useMembers';
 import { differenceInCalendarDays, format } from 'date-fns';
 
 function DueDateTag({ date }) {
@@ -25,9 +24,8 @@ const PRIORITY_COLORS = { urgent: '#DC2626', high: '#EA580C', medium: '#10b981',
 const PRIORITY_LABELS = { urgent: 'URGENT', high: 'HIGH', medium: 'MED', low: 'LOW' };
 
 export default function KanbanView({ tasks, searchQuery, statusFilter, priorityFilter, mode }) {
-  const { openTask, openCreatePanel, workspace } = useAppContext();
+  const { openTask, openCreatePanel, workspace, members } = useAppContext();
   const { updateTask } = useTasksContext();
-  const { members } = useMembers(workspace?.id);
 
   const getMemberInitials = (userId) =>
     members.find(m => m.user_id === userId)?.profile?.avatar_initials;

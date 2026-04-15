@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { account, databases, DATABASE_ID, COLLECTIONS, ID } from '../lib/appwrite';
+import { Permission, Role } from 'appwrite';
 
 // Derives 1–2 letter initials from a display name or email.
 const getInitials = (name, email) => {
@@ -44,7 +45,8 @@ export const useAuth = () => {
         name: doc.name,
         email: doc.email,
         avatar_initials: doc.avatar_initials,
-        role: doc.role,
+        designation: doc.designation,
+        avatar_url: doc.avatar_url,
         color: doc.color,
       });
     } catch (error) {
@@ -68,7 +70,8 @@ export const useAuth = () => {
           name: doc.name,
           email: doc.email,
           avatar_initials: doc.avatar_initials,
-          role: doc.role,
+          designation: doc.designation,
+          avatar_url: doc.avatar_url,
           color: doc.color,
         });
         return;
@@ -88,14 +91,20 @@ export const useAuth = () => {
           avatar_initials: initials,
           role: 'Member',
           color: '#3b82f6',
-        }
+        },
+        [
+          Permission.read(Role.any()),
+          Permission.update(Role.user(currentUser.$id)),
+          Permission.delete(Role.user(currentUser.$id))
+        ]
       );
       setProfile({
         id: newProfile.$id,
         name: newProfile.name,
         email: newProfile.email,
         avatar_initials: newProfile.avatar_initials,
-        role: newProfile.role,
+        designation: newProfile.designation,
+        avatar_url: newProfile.avatar_url,
         color: newProfile.color,
       });
     } catch (error) {
@@ -135,7 +144,11 @@ export const useAuth = () => {
         email,
         avatar_initials: initials,
         role: 'member',
-      });
+      }, [
+        Permission.read(Role.any()),
+        Permission.update(Role.user(newUser.$id)),
+        Permission.delete(Role.user(newUser.$id))
+      ]);
 
       await checkUser();
       return { data: newUser, error: null };
@@ -159,7 +172,12 @@ export const useAuth = () => {
         DATABASE_ID,
         COLLECTIONS.PROFILES,
         user.$id,
-        updatedData
+        updatedData,
+        [
+          Permission.read(Role.any()),
+          Permission.update(Role.user(user.$id)),
+          Permission.delete(Role.user(user.$id))
+        ]
       );
       
       setProfile({
@@ -167,7 +185,8 @@ export const useAuth = () => {
         name: doc.name,
         email: doc.email,
         avatar_initials: doc.avatar_initials,
-        role: doc.role,
+        designation: doc.designation,
+        avatar_url: doc.avatar_url,
         color: doc.color,
       });
       return { data: doc, error: null };

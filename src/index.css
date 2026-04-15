@@ -29,9 +29,9 @@
     --shadow-color:  #000000;
     --text-primary:   #e0e0e8;
     --text-secondary: #c0c0cc;
-    --text-muted:     #9999aa;
-    --text-dim:       #6a6a7a;
-    --text-faint:     #3a3a4a;
+    --text-muted:     #a0a0b8;
+    --text-dim:       #808090;
+    --text-faint:     #5a5a70;
   }
 
   body {

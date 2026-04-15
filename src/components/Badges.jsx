@@ -146,9 +146,19 @@ export const PriorityDropdown = ({ current, onChange, onClose, anchorEl }) => (
 );
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
-export const Avatar = ({ userId, initials, color: overrideColor, size = 'md' }) => {
+export const Avatar = ({ userId, initials, color: overrideColor, size = 'md', avatarUrl }) => {
   const sizeClass = size === 'sm' ? 'w-7 h-7 text-[10px]' : size === 'lg' ? 'w-20 h-20 text-3xl' : 'w-8 h-8 text-sm';
   const color = overrideColor || getMemberColor(userId);
+
+  if (avatarUrl) {
+    return (
+      <img 
+        src={avatarUrl} 
+        className={`${sizeClass} border-2 border-border-default object-cover shrink-0`} 
+        alt="" 
+      />
+    );
+  }
 
   if (!userId && !initials) {
     return (

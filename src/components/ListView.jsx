@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { useTasksContext } from '../context/TasksContext';
 import { Avatar, StatusDropdown, PriorityDropdown, AssigneeDropdown } from './Badges';
-import { useMembers } from '../hooks/useMembers';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { format, differenceInCalendarDays } from 'date-fns';
 import { STATUSES } from '../data/constants';
@@ -57,9 +56,8 @@ function DueDateText({ date }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ListView({ tasks, searchQuery, statusFilter, priorityFilter, mode }) {
-  const { workspace, openTask, openCreatePanel, showConfirm } = useAppContext();
-  const { groups, activities, updateTask, reorderTasks, deleteGroup, updateGroup, deleteTask } = useTasksContext();
-  const { members } = useMembers(workspace?.id);
+  const { workspace, openTask, openCreatePanel, showConfirm, members } = useAppContext();
+  const { groups, activities, updateTask, reorderTasks, reorderGroups, deleteGroup, updateGroup, deleteTask } = useTasksContext();
 
   const [editingGroupId,   setEditingGroupId]   = useState(null);
   const [editingGroupName, setEditingGroupName] = useState('');
@@ -145,9 +143,15 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
   const closeDropdown = () => setActiveDropdown(null);
 
   const onDragEnd = async (result) => {
-    const { destination, source, draggableId } = result;
+    const { destination, source, draggableId, type } = result;
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+    
+    if (type === 'group') {
+      reorderGroups(draggableId, destination.index);
+      return;
+    }
+
     reorderTasks(draggableId, destination.droppableId, destination.index, source.droppableId);
     await updateTask(draggableId, { group_id: destination.droppableId, position: destination.index });
   };
@@ -191,20 +195,32 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
   return (
     <div className="flex flex-col pb-24">
       <DragDropContext onDragEnd={onDragEnd}>
-        {effectiveGroups.map((group) => {
-          const isCollapsed = collapsedGroups[group.id];
-          const groupTasks  = (mode === 'my-tasks'
-            ? filteredTasks
-            : filteredTasks.filter(t => t.group_id === group.id)
-          ).filter(t => !t.parent_id);
-          const groupTaskIds = groupTasks.map(t => t.id);
-          const allGroupSelected = groupTaskIds.length > 0 && groupTaskIds.every(id => selectedIds.has(id));
+        <Droppable droppableId="groups-board" type="group" direction="vertical" isDropDisabled={mode === 'my-tasks'}>
+          {(providedGroup) => (
+            <div ref={providedGroup.innerRef} {...providedGroup.droppableProps}>
+              {effectiveGroups.map((group, index) => {
+                const isCollapsed = collapsedGroups[group.id];
+                const groupTasks  = (mode === 'my-tasks'
+                  ? filteredTasks
+                  : filteredTasks.filter(t => t.group_id === group.id)
+                ).filter(t => !t.parent_id);
+                const groupTaskIds = groupTasks.map(t => t.id);
+                const allGroupSelected = groupTaskIds.length > 0 && groupTaskIds.every(id => selectedIds.has(id));
 
-          return (
-            <div key={group.id} className="mb-1">
-              {/* ── Group Header ── */}
-              <div className="flex items-center gap-3 px-6 py-4 group/gh">
-                <button
+                return (
+                  <Draggable key={group.id} draggableId={group.id} index={index} isDragDisabled={mode === 'my-tasks'}>
+                    {(providedDraggable) => (
+                      <div 
+                        ref={providedDraggable.innerRef} 
+                        {...providedDraggable.draggableProps} 
+                        className="mb-1 bg-background-primary"
+                      >
+                        {/* ── Group Header ── */}
+                        <div className="flex items-center gap-3 px-6 py-4 group/gh">
+                          <div {...providedDraggable.dragHandleProps} className="text-text-faint hover:text-text-primary cursor-grab active:cursor-grabbing mr-1">
+                            ⋮⋮
+                          </div>
+                          <button
                   onClick={() => toggleGroupCollapse(group.id)}
                   className="text-text-faint hover:text-text-muted transition-colors text-xs w-4 shrink-0 font-black"
                 >
@@ -415,9 +431,15 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
                   + Add task
                 </button>
               )}
+                      </div>
+                    )}
+                  </Draggable>
+                );
+              })}
+              {providedGroup.placeholder}
             </div>
-          );
-        })}
+          )}
+        </Droppable>
       </DragDropContext>
 
       {/* ── Add Group ── */}

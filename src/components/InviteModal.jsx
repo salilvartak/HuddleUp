@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { useMembers } from '../hooks/useMembers';
 import { Avatar } from './Badges';
 
 const ROLES = [
@@ -10,8 +9,7 @@ const ROLES = [
 ];
 
 export default function InviteModal() {
-  const { setShowInviteModal, workspace } = useAppContext();
-  const { members, invite, refresh } = useMembers(workspace?.id);
+  const { setShowInviteModal, workspace, members, inviteMember } = useAppContext();
   const [email,          setEmail]          = useState('');
   const [role,           setRole]           = useState('member');
   const [loading,        setLoading]        = useState(false);
@@ -24,12 +22,11 @@ export default function InviteModal() {
     if (!email.trim() || loading) return;
     setLoading(true);
     try {
-      const { data, error } = await invite(email, role);
+      const { data, error } = await inviteMember(email, role);
       if (error) throw error;
       setLatestInvite(data);
       setPendingInvites(prev => [...prev, { email, role }]);
       setEmail('');
-      refresh();
     } catch (err) {
       console.error('Invite error:', err);
       alert('Failed to send invite: ' + err.message);
