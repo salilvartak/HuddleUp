@@ -6,7 +6,7 @@ import { Query } from 'appwrite';
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading, logout, updateProfile } = useAuth();
   const [workspace, setWorkspace] = useState(null);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,6 +19,7 @@ export const AppProvider = ({ children }) => {
   const [mode, setMode] = useState('project');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   // Confirm dialog state — { title, message, onConfirm } | null
   const [confirmConfig, setConfirmConfig] = useState(null);
@@ -177,6 +178,8 @@ export const AppProvider = ({ children }) => {
   const value = {
     user,
     profile,
+    logout,
+    updateProfile,
     workspace,
     projects,
     loading: authLoading || loading,
@@ -196,6 +199,8 @@ export const AppProvider = ({ children }) => {
     setSidebarCollapsed,
     showInviteModal,
     setShowInviteModal,
+    showProfileModal,
+    setShowProfileModal,
     confirmConfig,
     showConfirm,
     hideConfirm,

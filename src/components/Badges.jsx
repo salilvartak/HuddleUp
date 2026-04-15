@@ -146,11 +146,11 @@ export const PriorityDropdown = ({ current, onChange, onClose, anchorEl }) => (
 );
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
-export const Avatar = ({ userId, initials, size = 'md' }) => {
-  const sizeClass = size === 'sm' ? 'w-7 h-7 text-xs' : 'w-8 h-8 text-sm';
-  const color = getMemberColor(userId);
+export const Avatar = ({ userId, initials, color: overrideColor, size = 'md' }) => {
+  const sizeClass = size === 'sm' ? 'w-7 h-7 text-[10px]' : size === 'lg' ? 'w-20 h-20 text-3xl' : 'w-8 h-8 text-sm';
+  const color = overrideColor || getMemberColor(userId);
 
-  if (!userId) {
+  if (!userId && !initials) {
     return (
       <div className={`${sizeClass} border-2 border-border-default bg-background-elevated flex items-center justify-center text-text-faint shrink-0`}>
         <span className="leading-none text-xs font-bold">—</span>
@@ -158,10 +158,10 @@ export const Avatar = ({ userId, initials, size = 'md' }) => {
     );
   }
 
-  const display = initials || userId.slice(0, 2).toUpperCase();
+  const display = initials || (userId ? userId.slice(0, 2).toUpperCase() : '?');
   return (
     <div
-      className={`${sizeClass} border-2 border-border-default flex items-center justify-center font-black text-white shrink-0`}
+      className={`${sizeClass} border-2 border-border-default flex items-center justify-center font-black text-white shrink-0 transition-colors duration-200`}
       style={{ backgroundColor: color }}
       title={display}
     >

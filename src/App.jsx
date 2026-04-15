@@ -9,7 +9,8 @@ import InviteModal from './components/InviteModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import CreatePanel from './components/CreatePanel';
 import SearchModal from './components/SearchModal';
-import { databases, DATABASE_ID, COLLECTIONS, ID, teams } from './lib/appwrite';
+import SettingsView from './components/SettingsView';
+import { databases, DATABASE_ID, COLLECTIONS, ID } from './lib/appwrite';
 import { Query } from 'appwrite';
 
 function FullScreenSpinner() {
@@ -72,7 +73,7 @@ function WorkspaceOnboarding({ user, onCreated }) {
         ID.unique(),
         {
           group_id: group.$id,
-          title: 'Welcome to TaskFlow! 🚀',
+          title: 'Welcome to HuddleUp! 🚀',
           description: 'Try clicking on this task to see details, or add a new one below.',
           created_by: user.$id
         }
@@ -90,7 +91,7 @@ function WorkspaceOnboarding({ user, onCreated }) {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[150] p-4">
       <div className="bg-background-surface border-2 border-border-default shadow-[8px_8px_0px_var(--shadow-color)] p-8 w-full max-w-[440px]">
-        <img src="/src/assets/logo.png" alt="TaskFlow" className="w-10 h-10 mb-5 object-contain" />
+        <img src="/src/assets/logo.png" alt="HuddleUp" className="w-10 h-10 mb-5 object-contain" />
         <h2 className="text-xl font-black uppercase tracking-tight text-text-primary mb-1">Create your workspace</h2>
         <p className="text-sm font-medium text-text-muted mb-6">Give your team a name to get started.</p>
 
@@ -130,6 +131,7 @@ export default function App() {
     refreshData,
     showSearch,
     setShowSearch,
+    view
   } = useAppContext();
 
   // Global Cmd+K / Ctrl+K shortcut
@@ -222,14 +224,20 @@ export default function App() {
   if (loading) return <FullScreenSpinner />;
   if (!user) return <AuthScreen />;
 
+  const isSettings = view === 'settings';
+
   return (
     <TasksProvider>
       <div className="flex h-screen bg-background-primary text-text-primary overflow-hidden font-sans">
         <Sidebar />
-        <MainContent />
+        
+        {isSettings ? (
+          <SettingsView />
+        ) : (
+          <MainContent />
+        )}
 
         {activeTaskId && <TaskModal />}
-        {showInviteModal && <InviteModal />}
         {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
         <ConfirmDialog />
         <CreatePanel />

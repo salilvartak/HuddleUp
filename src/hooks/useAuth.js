@@ -45,6 +45,7 @@ export const useAuth = () => {
         email: doc.email,
         avatar_initials: doc.avatar_initials,
         role: doc.role,
+        color: doc.color,
       });
     } catch (error) {
       if (error.code === 404) {
@@ -68,6 +69,7 @@ export const useAuth = () => {
           email: doc.email,
           avatar_initials: doc.avatar_initials,
           role: doc.role,
+          color: doc.color,
         });
         return;
       } catch (e) {
@@ -84,7 +86,8 @@ export const useAuth = () => {
           name: currentUser.name || currentUser.email.split('@')[0],
           email: currentUser.email,
           avatar_initials: initials,
-          role: 'member',
+          role: 'Member',
+          color: '#3b82f6',
         }
       );
       setProfile({
@@ -93,6 +96,7 @@ export const useAuth = () => {
         email: newProfile.email,
         avatar_initials: newProfile.avatar_initials,
         role: newProfile.role,
+        color: newProfile.color,
       });
     } catch (error) {
       console.error('Error ensuring profile:', error);
@@ -142,7 +146,38 @@ export const useAuth = () => {
     }
   };
 
-  const signOut = async () => {
+  const updateProfile = async (updates) => {
+    try {
+      if (!user) return;
+      
+      const updatedData = { ...updates };
+      if (updates.name) {
+        updatedData.avatar_initials = getInitials(updates.name, user.email);
+      }
+      
+      const doc = await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTIONS.PROFILES,
+        user.$id,
+        updatedData
+      );
+      
+      setProfile({
+        id: doc.$id,
+        name: doc.name,
+        email: doc.email,
+        avatar_initials: doc.avatar_initials,
+        role: doc.role,
+        color: doc.color,
+      });
+      return { data: doc, error: null };
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      return { data: null, error };
+    }
+  };
+
+  const logout = async () => {
     try {
       await account.deleteSession('current');
     } catch (error) {
@@ -152,5 +187,5 @@ export const useAuth = () => {
     setProfile(null);
   };
 
-  return { user, profile, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut };
+  return { user, profile, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, logout, updateProfile };
 };

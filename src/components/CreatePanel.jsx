@@ -26,6 +26,36 @@ export default function CreatePanel() {
     }
   }, [createPanelConfig, preselectedGroupId, groups]);
 
+  const [width, setWidth] = useState(window.innerWidth < 1024 ? Math.min(window.innerWidth, 480) : 480);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = React.useCallback((e) => {
+    setIsResizing(true);
+    e.preventDefault();
+  }, []);
+
+  const stopResizing = React.useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const resize = React.useCallback((e) => {
+    if (isResizing) {
+      const newWidth = window.innerWidth - e.clientX;
+      if (newWidth >= 320 && newWidth <= window.innerWidth - 40) {
+        setWidth(newWidth);
+      }
+    }
+  }, [isResizing]);
+
+  React.useEffect(() => {
+    window.addEventListener('mousemove', resize);
+    window.addEventListener('mouseup', stopResizing);
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [resize, stopResizing]);
+
   if (!createPanelConfig) return null;
 
   const set = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
@@ -68,10 +98,20 @@ export default function CreatePanel() {
   const inputCls = "w-full bg-background-surface border-2 border-border-default px-3 py-2 text-sm font-semibold text-text-primary outline-none focus:shadow-neo transition-all placeholder:text-text-faint";
 
   return (
-    <div className="fixed inset-0 z-[150] flex justify-end">
+    <div className={`fixed inset-0 z-[150] flex justify-end ${isResizing ? 'cursor-col-resize select-none' : ''}`}>
       <div className="absolute inset-0 bg-[#1a1a1a]/30" onClick={closeCreatePanel} />
 
-      <div className="relative w-[480px] bg-background-surface border-l-2 border-border-default h-screen flex flex-col animate-slide-in shadow-[-6px_0px_0px_var(--shadow-color)]">
+      {/* Resize Handle */}
+      <div
+        onMouseDown={startResizing}
+        className="absolute bottom-0 top-0 w-1.5 cursor-col-resize hover:bg-accent-green/50 transition-colors z-[160]"
+        style={{ right: width }}
+      />
+
+      <div 
+        className="relative bg-background-surface border-l-2 border-border-default h-screen flex flex-col animate-slide-in shadow-[-6px_0px_0px_var(--shadow-color)]"
+        style={{ width: `${width}px` }}
+      >
         <style>{`
           @keyframes slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
           .animate-slide-in { animation: slide-in 0.25s ease-out; }

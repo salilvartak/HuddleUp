@@ -35,6 +35,36 @@ export default function TaskModal() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.id]);
 
+  const [width, setWidth] = useState(window.innerWidth < 1024 ? Math.min(window.innerWidth, 480) : 600);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = React.useCallback((e) => {
+    setIsResizing(true);
+    e.preventDefault();
+  }, []);
+
+  const stopResizing = React.useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const resize = React.useCallback((e) => {
+    if (isResizing) {
+      const newWidth = window.innerWidth - e.clientX;
+      if (newWidth >= 320 && newWidth <= window.innerWidth - 40) {
+        setWidth(newWidth);
+      }
+    }
+  }, [isResizing]);
+
+  React.useEffect(() => {
+    window.addEventListener('mousemove', resize);
+    window.addEventListener('mouseup', stopResizing);
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [resize, stopResizing]);
+
   if (!task) return null;
 
   const taskComments   = comments.filter(c => c.task_id === task.id);
@@ -73,10 +103,20 @@ export default function TaskModal() {
   const assigneeProfile = getMemberProfile(task.assignee_id);
 
   return (
-    <div className="fixed inset-0 z-[100] flex justify-end">
+    <div className={`fixed inset-0 z-[100] flex justify-end ${isResizing ? 'cursor-col-resize select-none' : ''}`}>
       <div className="absolute inset-0 bg-[#1a1a1a]/30" onClick={closeTask} />
 
-      <div className="relative w-[600px] bg-background-surface border-l-2 border-border-default h-screen flex flex-col overflow-hidden animate-slide-in shadow-[-6px_0px_0px_var(--shadow-color)]">
+      {/* Resize Handle */}
+      <div
+        onMouseDown={startResizing}
+        className="absolute bottom-0 top-0 w-1.5 cursor-col-resize hover:bg-accent-green/50 transition-colors z-[110]"
+        style={{ right: width }}
+      />
+
+      <div 
+        className="relative bg-background-surface border-l-2 border-border-default h-screen flex flex-col overflow-hidden animate-slide-in shadow-[-6px_0px_0px_var(--shadow-color)]"
+        style={{ width: `${width}px` }}
+      >
         <style>{`
           @keyframes slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
           .animate-slide-in { animation: slide-in 0.25s ease-out; }
@@ -116,7 +156,7 @@ export default function TaskModal() {
             <div className="flex items-center gap-3">
               <span className="w-16 text-[11px] font-black uppercase tracking-widest text-text-faint shrink-0">Assignee</span>
               <button onClick={e => openDropdown('assignee', e)} className="flex items-center gap-2 border-2 border-border-default px-2 py-1 hover:bg-background-hover transition-colors font-semibold text-sm text-text-primary">
-                <Avatar size="sm" userId={task.assignee_id} initials={assigneeProfile?.avatar_initials} />
+                <Avatar size="sm" userId={task.assignee_id} initials={assigneeProfile?.avatar_initials} color={assigneeProfile?.color} />
                 {assigneeProfile?.name || 'Unassigned'}
               </button>
               {activeDropdown?.type === 'assignee' && <AssigneeDropdown current={task.assignee_id} members={members} anchorEl={activeDropdown.el} onChange={val => updateTask(task.id, { assignee_id: val })} onClose={closeDropdown} />}
@@ -176,7 +216,7 @@ export default function TaskModal() {
                   const p = getMemberProfile(comment.author_id);
                   return (
                     <div key={comment.id} className="flex gap-3">
-                      <Avatar size="sm" userId={comment.author_id} initials={p?.avatar_initials} />
+                      <Avatar size="sm" userId={comment.author_id} initials={p?.avatar_initials} color={p?.color} />
                       <div className="flex-1 bg-background-primary border-2 border-border-default p-3">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm font-black text-text-primary">{p?.name || 'User'}</span>
@@ -189,7 +229,7 @@ export default function TaskModal() {
                 })}
 
                 <div className="flex gap-3 pt-4 border-t-2 border-border-subtle">
-                  <Avatar size="sm" userId={user?.$id} initials={profile?.avatar_initials} />
+                  <Avatar size="sm" userId={user?.$id} initials={profile?.avatar_initials} color={profile?.color} />
                   <div className="flex-1 flex flex-col gap-2">
                     <textarea
                       className="w-full bg-background-surface border-2 border-border-default p-3 text-sm font-medium text-text-primary outline-none focus:shadow-neo resize-none transition-all placeholder:text-text-faint"
@@ -217,7 +257,7 @@ export default function TaskModal() {
                 {taskActivities.length === 0 && <p className="text-center py-8 text-sm font-semibold text-text-faint">No activity yet</p>}
                 {[...taskActivities].reverse().map(act => (
                   <div key={act.id} className="flex items-center gap-3 text-sm py-2 border-b border-border-subtle">
-                    <Avatar size="sm" userId={act.actor_id} initials={getMemberProfile(act.actor_id)?.avatar_initials} />
+                  <Avatar size="sm" userId={act.actor_id} initials={getMemberProfile(act.actor_id)?.avatar_initials} color={getMemberProfile(act.actor_id)?.color} />
                     <div className="flex gap-1 flex-1">
                       <span className="font-black text-text-primary">{act.actor_name || 'Someone'}</span>
                       <span className="text-text-muted font-medium">{act.action}</span>
