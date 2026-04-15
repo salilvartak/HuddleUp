@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Theme CSS variables ─────────────────────────────────────────────────────── */
+@layer base {
+  :root {
+    --bg-primary:    #FFF8F0;
+    --bg-surface:    #FFFFFF;
+    --bg-elevated:   #FFF3E0;
+    --bg-hover:      #FFF3E0;
+    --border-strong: #1a1a1a;
+    --border-subtle: rgba(26, 26, 26, 0.12);
+    --shadow-color:  #1a1a1a;
+    --text-primary:   #0A0A0A;
+    --text-secondary: #2a2a2a;
+    --text-muted:     #555555;
+    --text-dim:       #777777;
+    --text-faint:     #AAAAAA;
+  }
+
+  .dark {
+    --bg-primary:    #0e0e10;
+    --bg-surface:    #0c0c0f;
+    --bg-elevated:   #12121a;
+    --bg-hover:      #1a1a24;
+    --border-strong: #22222e;
+    --border-subtle: #1a1a22;
+    --shadow-color:  #000000;
+    --text-primary:   #e0e0e8;
+    --text-secondary: #c0c0cc;
+    --text-muted:     #9999aa;
+    --text-dim:       #6a6a7a;
+    --text-faint:     #3a3a4a;
+  }
+
+  body {
+    @apply bg-background-primary text-text-primary font-sans antialiased;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--border-subtle); }
+  ::-webkit-scrollbar-thumb { background: var(--text-faint); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+  ::-webkit-scrollbar-corner { background: transparent; }
+}
+
+@layer components {
+  /* ── Neo-brutalist base classes ─────────────────────────────────── */
+  .neo-card {
+    @apply bg-background-surface border-2 border-border-default shadow-neo-md;
+  }
+
+  .neo-btn {
+    @apply inline-flex items-center justify-center font-bold border-2 border-border-default
+           shadow-neo transition-all duration-100 active:shadow-none active:translate-x-[3px] active:translate-y-[3px]
+           cursor-pointer select-none;
+  }
+
+  .neo-btn-accent {
+    @apply neo-btn bg-[#10b981] text-white hover:bg-[#0d9468];
+  }
+
+  .neo-btn-white {
+    @apply neo-btn bg-background-surface text-text-primary hover:bg-background-hover;
+  }
+
+  .neo-btn-red {
+    @apply neo-btn bg-red-500 text-white hover:bg-red-600;
+  }
+
+  .neo-input {
+    @apply bg-background-surface border-2 border-border-default px-3 py-2 text-sm text-text-primary
+           outline-none focus:shadow-neo transition-all duration-100
+           placeholder:text-text-faint;
+  }
+
+  /* Legacy helpers */
+  .btn-primary {
+    @apply neo-btn-accent px-4 py-2 text-sm;
+  }
+
+  .btn-ghost {
+    @apply text-text-muted hover:text-text-primary transition-colors;
+  }
+
+  .input-dark {
+    @apply neo-input;
+  }
+}
