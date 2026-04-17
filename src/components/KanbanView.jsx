@@ -1,6 +1,6 @@
 import React from 'react';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { STATUSES } from '../data/constants';
+import { Droppable, Draggable } from '@hello-pangea/dnd';
+import { STATUSES, sortTasksByPriority } from '../data/constants';
 import { Avatar } from './Badges';
 import { useAppContext } from '../context/AppContext';
 import { useTasksContext } from '../context/TasksContext';
@@ -24,16 +24,15 @@ const PRIORITY_COLORS = { urgent: '#DC2626', high: '#EA580C', medium: '#10b981',
 const PRIORITY_LABELS = { urgent: 'URGENT', high: 'HIGH', medium: 'MED', low: 'LOW' };
 
 export default function KanbanView({ tasks, searchQuery, statusFilter, priorityFilter, mode }) {
-  const { openTask, openCreatePanel, workspace, members } = useAppContext();
+  const { openTask, openCreatePanel, workspace, members, canEdit } = useAppContext();
   const { updateTask } = useTasksContext();
 
   const getMemberInitials = (userId) =>
     members.find(m => m.user_id === userId)?.profile?.avatar_initials;
 
-  const [pendingStatuses, setPendingStatuses] = React.useState({});
-  const getEffectiveStatus = (task) => pendingStatuses[task.id] ?? task.status;
+  const getEffectiveStatus = (task) => task.status;
 
-  const getSubtasks = (taskId) => tasks.filter(t => t.parent_id === taskId);
+  const getSubtasks = (taskId) => sortedTasks.filter(t => t.parent_id === taskId);
 
   const filteredTasks = tasks.filter(t => {
     if (t.parent_id) return false;
@@ -42,23 +41,14 @@ export default function KanbanView({ tasks, searchQuery, statusFilter, priorityF
     return matchesSearch && matchesPriority;
   });
 
+  const sortedTasks = sortTasksByPriority(filteredTasks);
+
   const visibleStatuses = statusFilter ? STATUSES.filter(s => s.id === statusFilter) : STATUSES;
 
-  const onDragEnd = async (result) => {
-    const { destination, source, draggableId } = result;
-    if (!destination) return;
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
-    const destStatusId = destination.droppableId;
-    setPendingStatuses(prev => ({ ...prev, [draggableId]: destStatusId }));
-    await updateTask(draggableId, { status: destStatusId });
-    setPendingStatuses(prev => { const next = { ...prev }; delete next[draggableId]; return next; });
-  };
-
   return (
-    <DragDropContext onDragEnd={onDragEnd}>
       <div className="flex h-full p-5 gap-4 overflow-x-auto overflow-y-hidden bg-background-primary">
         {visibleStatuses.map(status => {
-          const statusTasks = filteredTasks.filter(t => getEffectiveStatus(t) === status.id);
+          const statusTasks = sortedTasks.filter(t => getEffectiveStatus(t) === status.id);
 
           return (
             <div key={status.id} className="flex-shrink-0 w-[280px] flex flex-col h-full group/col">
@@ -70,7 +60,7 @@ export default function KanbanView({ tasks, searchQuery, statusFilter, priorityF
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black border-2 border-border-default px-1.5 bg-background-primary text-text-secondary">{statusTasks.length}</span>
-                  {mode === 'project' && (
+                  {mode === 'project' && canEdit && (
                     <button
                       onClick={() => openCreatePanel('task')}
                       className="text-sm font-black text-text-secondary hover:text-text-primary opacity-0 group-hover/col:opacity-100 transition-opacity"
@@ -93,7 +83,7 @@ export default function KanbanView({ tasks, searchQuery, statusFilter, priorityF
                       const doneCount = subtasks.filter(s => s.status === 'done').length;
 
                       return (
-                        <Draggable key={task.id} draggableId={task.id} index={index}>
+                        <Draggable key={task.id} draggableId={task.id} index={index} isDragDisabled={!canEdit}>
                           {(provided, snapshot) => (
                             <div
                               ref={provided.innerRef}
@@ -156,7 +146,7 @@ export default function KanbanView({ tasks, searchQuery, statusFilter, priorityF
                     })}
                     {provided.placeholder}
 
-                    {mode === 'project' && (
+                    {mode === 'project' && canEdit && (
                       <button
                         onClick={() => openCreatePanel('task')}
                         className="w-full py-2.5 text-xs font-black uppercase tracking-wider text-text-faint border-2 border-dashed border-border-default/30 hover:border-border-default hover:bg-background-surface hover:text-text-primary transition-all duration-100"
@@ -171,6 +161,5 @@ export default function KanbanView({ tasks, searchQuery, statusFilter, priorityF
           );
         })}
       </div>
-    </DragDropContext>
   );
 }

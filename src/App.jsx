@@ -11,7 +11,9 @@ import ConfirmDialog from './components/ConfirmDialog';
 import CreatePanel from './components/CreatePanel';
 import SearchModal from './components/SearchModal';
 import SettingsView from './components/SettingsView';
+import GlobalDragDrop from './components/GlobalDragDrop';
 import { databases, DATABASE_ID, COLLECTIONS, ID } from './lib/appwrite';
+import { createProfileIfNeeded } from './hooks/useAuth';
 import { Query } from 'appwrite';
 
 function FullScreenSpinner() {
@@ -43,13 +45,21 @@ function WorkspaceOnboarding({ user, onCreated }) {
         { name, slug, created_by: user.$id }
       );
 
-      // 2. Add as admin
-      await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.WORKSPACE_MEMBERS,
-        ID.unique(),
-        { workspace_id: workspace.$id, user_id: user.$id, role: 'admin' }
-      );
+      // 2. Add as admin — try to store name for fallback display
+      const adminName = user.name || user.email?.split('@')[0] || '';
+      try {
+        await databases.createDocument(DATABASE_ID, COLLECTIONS.WORKSPACE_MEMBERS, ID.unique(), {
+          workspace_id: workspace.$id, user_id: user.$id, role: 'admin', member_name: adminName,
+        });
+      } catch (e) {
+        if (e.code === 400) {
+          await databases.createDocument(DATABASE_ID, COLLECTIONS.WORKSPACE_MEMBERS, ID.unique(), {
+            workspace_id: workspace.$id, user_id: user.$id, role: 'admin',
+          });
+        } else {
+          throw e;
+        }
+      }
 
       // 3. Create default project
       const project = await databases.createDocument(
@@ -186,17 +196,45 @@ export default function App() {
           );
 
           if (existing.total === 0) {
-            // 4. Create member record
-            await databases.createDocument(
-              DATABASE_ID,
-              COLLECTIONS.WORKSPACE_MEMBERS,
-              ID.unique(),
-              {
+            // 4. Create member record — try to store name for fallback display
+            const memberName = user.name || user.email.split('@')[0];
+            try {
+              await databases.createDocument(DATABASE_ID, COLLECTIONS.WORKSPACE_MEMBERS, ID.unique(), {
                 workspace_id: invite.workspace_id,
                 user_id: user.$id,
                 role: invite.role,
+                member_name: memberName,
+              });
+            } catch (e) {
+              if (e.code === 400) {
+                // member_name not in schema, store without it
+                await databases.createDocument(DATABASE_ID, COLLECTIONS.WORKSPACE_MEMBERS, ID.unique(), {
+                  workspace_id: invite.workspace_id,
+                  user_id: user.$id,
+                  role: invite.role,
+                });
+              } else {
+                throw e;
               }
-            );
+            }
+          }
+
+          // Ensure this user's profile exists so other members can see their name/avatar
+          await createProfileIfNeeded(
+            user.$id,
+            user.name || user.email.split('@')[0],
+            user.email
+          );
+
+          // Backfill member_name on existing records that don't have it yet
+          if (existing.total > 0) {
+            const existingMember = existing.documents[0];
+            if (!existingMember.member_name) {
+              const memberName = user.name || user.email.split('@')[0];
+              try {
+                await databases.updateDocument(DATABASE_ID, COLLECTIONS.WORKSPACE_MEMBERS, existingMember.$id, { member_name: memberName });
+              } catch { /* schema may not have member_name — ignore */ }
+            }
           }
 
           // 5. Mark invite as accepted
@@ -229,22 +267,24 @@ export default function App() {
 
   return (
     <TasksProvider>
-      <div className="flex h-screen bg-background-primary text-text-primary overflow-hidden font-sans">
-        <Sidebar />
-        
-        {isSettings ? (
-          <SettingsView />
-        ) : (
-          <MainContent />
-        )}
+      <GlobalDragDrop>
+        <div className="flex h-screen bg-background-primary text-text-primary overflow-hidden font-sans">
+          <Sidebar />
+          
+          {isSettings ? (
+            <SettingsView />
+          ) : (
+            <MainContent />
+          )}
 
-        {activeTaskId && <TaskModal />}
-        {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
-        <ConfirmDialog />
-        <CreatePanel />
+          {activeTaskId && <TaskModal />}
+          {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
+          <ConfirmDialog />
+          <CreatePanel />
 
-        {!workspace && !loading && <WorkspaceOnboarding user={user} onCreated={refreshData} />}
-      </div>
+          {!workspace && !loading && <WorkspaceOnboarding user={user} onCreated={refreshData} />}
+        </div>
+      </GlobalDragDrop>
     </TasksProvider>
   );
 }

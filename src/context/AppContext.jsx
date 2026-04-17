@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { databases, DATABASE_ID, COLLECTIONS, client } from '../lib/appwrite';
-import { useAuth } from '../hooks/useAuth';
+import { databases, DATABASE_ID, COLLECTIONS, client, ID } from '../lib/appwrite';
+import { useAuth, getInitials, createProfileIfNeeded } from '../hooks/useAuth';
 import { Query } from 'appwrite';
 
 const AppContext = createContext();
@@ -30,6 +30,8 @@ export const AppProvider = ({ children }) => {
   const [createPanelConfig, setCreatePanelConfig] = useState(null);
 
   const hasAutoSelectedRef = useRef(false);
+  const selectedProjectIdRef = useRef(selectedProjectId);
+  useEffect(() => { selectedProjectIdRef.current = selectedProjectId; }, [selectedProjectId]);
 
   // ── Theme ──────────────────────────────────────────────────────────────────
   const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') === 'dark');
@@ -64,44 +66,68 @@ export const AppProvider = ({ children }) => {
               [Query.equal('workspace_id', workspaceId), Query.orderAsc('position')]
             )
           ]);
-          
+
           setWorkspace({ ...workspaceDoc, id: workspaceDoc.$id });
-          
-          const initialProjects = projectsResponse.documents.map(doc => ({ 
-            ...doc, id: doc.$id, taskCount: 0 
+
+          const initialProjects = projectsResponse.documents.map(doc => ({
+            ...doc, id: doc.$id, taskCount: 0
           }));
           setProjects(initialProjects);
-          
-          // Fetch members
+
+          // Fetch members + their profiles individually (getDocument is reliable; listDocuments query by $id may miss results)
           setLoadingMembers(true);
           try {
             const mRes = await databases.listDocuments(
               DATABASE_ID, COLLECTIONS.WORKSPACE_MEMBERS,
               [Query.equal('workspace_id', workspaceId)]
             );
-            const uIds = mRes.documents.map(m => m.user_id);
-            const pRes = uIds.length > 0
-              ? await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [Query.equal('$id', uIds)])
-              : { documents: [] };
-            const pMap = pRes.documents.reduce((acc, p) => ({ ...acc, [p.$id]: p }), {});
-            setMembers(mRes.documents.map(m => ({
-              ...m,
-              id: m.$id,
-              profile: pMap[m.user_id] || { name: m.user_id.slice(0, 8), avatar_initials: m.user_id.slice(0, 2).toUpperCase(), color: '#3b82f6' }
-            })));
+            const profiles = await Promise.all(
+              mRes.documents.map(m =>
+                databases.getDocument(DATABASE_ID, COLLECTIONS.PROFILES, m.user_id).catch(() => null)
+              )
+            );
+            const builtMembers = mRes.documents.map((m, i) => {
+              const p = profiles[i];
+              const name = p?.name || '';
+              let fallbackProfile;
+              if (m.member_name) {
+                fallbackProfile = { name: m.member_name, avatar_initials: getInitials(m.member_name, ''), color: '#6b7280' };
+              } else {
+                fallbackProfile = { name: 'Pending', avatar_initials: '?', color: '#6b7280' };
+              }
+              return {
+                ...m,
+                id: m.$id,
+                profile: p
+                  ? { ...p, name, avatar_initials: p.avatar_initials || getInitials(name, '') }
+                  : fallbackProfile,
+              };
+            });
+            setMembers(builtMembers);
+
+            // Self-heal: if current user's profile is missing, create it and backfill member_name
+            const selfMember = builtMembers.find(m => m.user_id === user?.$id);
+            if (selfMember && !profiles[builtMembers.indexOf(selfMember)]) {
+              const selfName = user?.name || user?.email?.split('@')[0] || '';
+              createProfileIfNeeded(user.$id, selfName, user?.email || '').then(() => {
+                if (!selfMember.member_name && selfName) {
+                  databases.updateDocument(DATABASE_ID, COLLECTIONS.WORKSPACE_MEMBERS, selfMember.$id, { member_name: selfName }).catch(() => {});
+                }
+              });
+            }
           } catch (e) {
             console.error('Error fetching members:', e);
           } finally {
             setLoadingMembers(false);
           }
 
-          // Auto-select first project if none selected and not already auto-selected
-          if (initialProjects.length > 0 && !selectedProjectId && !hasAutoSelectedRef.current) {
+          // Auto-select first project only on initial load (not when user navigates away)
+          if (initialProjects.length > 0 && !selectedProjectIdRef.current && !hasAutoSelectedRef.current) {
             hasAutoSelectedRef.current = true;
             setSelectedProjectId(initialProjects[0].id);
-            setMode('project'); // Ensure we are in project mode
+            setMode('project');
           }
-          
+
           if (!silent) setLoading(false);
 
           // Fetch counts in background
@@ -115,7 +141,7 @@ export const AppProvider = ({ children }) => {
               if (gIds.length > 0) {
                 const tasksRes = await databases.listDocuments(
                   DATABASE_ID, COLLECTIONS.TASKS,
-                  [Query.equal('group_id', gIds), Query.isNull('parent_id'), Query.limit(0)]
+                  [Query.equal('group_id', gIds), Query.limit(1)]
                 );
                 return { id: doc.id, taskCount: tasksRes.total };
               }
@@ -136,7 +162,7 @@ export const AppProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [user, selectedProjectId]); // Added selectedProjectId to deps for auto-selection logic
+  }, [user]); // selectedProjectId intentionally excluded — use selectedProjectIdRef inside
 
   // Auto-select the first project once on initial load
   useEffect(() => {
@@ -158,6 +184,8 @@ export const AppProvider = ({ children }) => {
             `databases.${DATABASE_ID}.collections.${COLLECTIONS.PROJECTS}.documents`,
             `databases.${DATABASE_ID}.collections.${COLLECTIONS.GROUPS}.documents`,
             `databases.${DATABASE_ID}.collections.${COLLECTIONS.TASKS}.documents`,
+            `databases.${DATABASE_ID}.collections.${COLLECTIONS.WORKSPACE_MEMBERS}.documents`,
+            `databases.${DATABASE_ID}.collections.${COLLECTIONS.PROFILES}.documents`,
           ],
           () => fetchWorkspaceData(true)
         );
@@ -292,6 +320,8 @@ export const AppProvider = ({ children }) => {
     loadingMembers,
     inviteMember,
     removeMember,
+    currentUserRole: members.find(m => m.user_id === user?.$id)?.role?.toLowerCase() || 'member',
+    canEdit: members.length === 0 || (members.find(m => m.user_id === user?.$id)?.role?.toLowerCase() !== 'viewer'),
   };
 
   return (

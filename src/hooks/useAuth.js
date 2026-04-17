@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { account, databases, DATABASE_ID, COLLECTIONS, ID } from '../lib/appwrite';
 import { Permission, Role } from 'appwrite';
 
-// Derives 1–2 letter initials from a display name or email.
-const getInitials = (name, email) => {
+export const getInitials = (name, email) => {
   if (name && name.trim()) {
     return name.trim().split(/\s+/).map(n => n[0]).join('').substring(0, 2).toUpperCase();
   }
@@ -11,6 +10,62 @@ const getInitials = (name, email) => {
     return email[0].toUpperCase();
   }
   return '?';
+};
+
+// Ensures a profile document exists in Appwrite for the given user.
+// Tries multiple attribute/permission combinations. Safe to call even if profile exists.
+export const createProfileIfNeeded = async (userId, name, email) => {
+  const initials = getInitials(name, email);
+  const permissions = [
+    Permission.read(Role.any()),
+    Permission.update(Role.user(userId)),
+    Permission.delete(Role.user(userId)),
+  ];
+
+  // Check if already exists
+  try {
+    await databases.getDocument(DATABASE_ID, COLLECTIONS.PROFILES, userId);
+    return true;
+  } catch (e) {
+    if (e.code !== 404) return false; // Not a missing-doc error, skip creation
+  }
+
+  // Try all combinations: with/without avatar_initials, with/without explicit permissions
+  // email is a required field in the PROFILES collection
+  const createAttempts = [
+    () => databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, userId, { name, email, avatar_initials: initials }, permissions),
+    () => databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, userId, { name, email }, permissions),
+    () => databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, userId, { name, email, avatar_initials: initials }),
+    () => databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, userId, { name, email }),
+  ];
+
+  for (const attempt of createAttempts) {
+    try {
+      await attempt();
+      return true;
+    } catch (e) {
+      if (e.code === 409) {
+        // Document exists but wasn't readable (wrong permissions) — try to update it
+        const updateAttempts = [
+          () => databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, userId, { name, email, avatar_initials: initials }, permissions),
+          () => databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, userId, { name, email }, permissions),
+          () => databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, userId, { name, avatar_initials: initials }),
+          () => databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, userId, { name }),
+        ];
+        for (const updateAttempt of updateAttempts) {
+          try {
+            await updateAttempt();
+            return true;
+          } catch (ue) {
+            console.warn('Profile update attempt failed:', ue.code, ue.message);
+          }
+        }
+        return false;
+      }
+      console.warn('createProfileIfNeeded attempt failed:', e.code, e.message);
+    }
+  }
+  return false;
 };
 
 export const useAuth = () => {
@@ -40,14 +95,11 @@ export const useAuth = () => {
   const fetchProfile = async (userId) => {
     try {
       const doc = await databases.getDocument(DATABASE_ID, COLLECTIONS.PROFILES, userId);
+      const name = doc.name || '';
       setProfile({
         id: doc.$id,
-        name: doc.name,
-        email: doc.email,
-        avatar_initials: doc.avatar_initials,
-        designation: doc.designation,
-        avatar_url: doc.avatar_url,
-        color: doc.color,
+        name,
+        avatar_initials: doc.avatar_initials || getInitials(name, ''),
       });
     } catch (error) {
       if (error.code === 404) {
@@ -61,52 +113,14 @@ export const useAuth = () => {
   const ensureProfile = async () => {
     try {
       const currentUser = await account.get();
+      const name = currentUser.name || currentUser.email.split('@')[0];
+      const initials = getInitials(name, currentUser.email);
 
-      // Try fetching once more (handles race conditions on first OAuth login)
-      try {
-        const doc = await databases.getDocument(DATABASE_ID, COLLECTIONS.PROFILES, currentUser.$id);
-        setProfile({
-          id: doc.$id,
-          name: doc.name,
-          email: doc.email,
-          avatar_initials: doc.avatar_initials,
-          designation: doc.designation,
-          avatar_url: doc.avatar_url,
-          color: doc.color,
-        });
-        return;
-      } catch (e) {
-        if (e.code !== 404) throw e;
-      }
+      // Set in-memory profile immediately so UI works regardless of DB result
+      setProfile({ id: currentUser.$id, name, avatar_initials: initials });
 
-      // Create profile — safe for OAuth (name may be empty) and email signup
-      const initials = getInitials(currentUser.name, currentUser.email);
-      const newProfile = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.PROFILES,
-        currentUser.$id,
-        {
-          name: currentUser.name || currentUser.email.split('@')[0],
-          email: currentUser.email,
-          avatar_initials: initials,
-          role: 'Member',
-          color: '#3b82f6',
-        },
-        [
-          Permission.read(Role.any()),
-          Permission.update(Role.user(currentUser.$id)),
-          Permission.delete(Role.user(currentUser.$id))
-        ]
-      );
-      setProfile({
-        id: newProfile.$id,
-        name: newProfile.name,
-        email: newProfile.email,
-        avatar_initials: newProfile.avatar_initials,
-        designation: newProfile.designation,
-        avatar_url: newProfile.avatar_url,
-        color: newProfile.color,
-      });
+      // Best-effort: create the profile document so other users can see this user's info
+      await createProfileIfNeeded(currentUser.$id, name, currentUser.email);
     } catch (error) {
       console.error('Error ensuring profile:', error);
     }
@@ -114,7 +128,8 @@ export const useAuth = () => {
 
   const signInWithGoogle = async () => {
     try {
-      account.createOAuth2Session('google', window.location.origin, window.location.origin);
+      // Use full href so ?inviteId=xxx is preserved after the OAuth redirect
+      account.createOAuth2Session('google', window.location.href, window.location.origin);
     } catch (err) {
       console.error('Login error:', err);
       alert(err.message);
@@ -137,19 +152,8 @@ export const useAuth = () => {
     try {
       const newUser = await account.create(ID.unique(), email, password, fullName);
       await account.createEmailPasswordSession(email, password);
-
-      const initials = getInitials(fullName, email);
-      await databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, newUser.$id, {
-        name: fullName || email.split('@')[0],
-        email,
-        avatar_initials: initials,
-        role: 'member',
-      }, [
-        Permission.read(Role.any()),
-        Permission.update(Role.user(newUser.$id)),
-        Permission.delete(Role.user(newUser.$id))
-      ]);
-
+      const name = fullName || email.split('@')[0];
+      await createProfileIfNeeded(newUser.$id, name, email);
       await checkUser();
       return { data: newUser, error: null };
     } catch (err) {
@@ -161,34 +165,42 @@ export const useAuth = () => {
 
   const updateProfile = async (updates) => {
     try {
-      if (!user) return;
-      
-      const updatedData = { ...updates };
-      if (updates.name) {
-        updatedData.avatar_initials = getInitials(updates.name, user.email);
+      if (!user) return { data: null, error: null };
+      if (!updates.name) return { data: null, error: null };
+
+      const name = updates.name;
+      const initials = getInitials(name, user.email);
+
+      let doc;
+      try {
+        doc = await databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, user.$id, { name, avatar_initials: initials });
+      } catch (e) {
+        if (e.code === 400) {
+          // avatar_initials not in schema — retry without it
+          try {
+            doc = await databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, user.$id, { name });
+          } catch (e2) {
+            if (e2.code === 404) {
+              await createProfileIfNeeded(user.$id, name, user.email);
+              doc = { name, avatar_initials: initials };
+            } else {
+              throw e2;
+            }
+          }
+        } else if (e.code === 404) {
+          // Profile doesn't exist yet — create it
+          await createProfileIfNeeded(user.$id, name, user.email);
+          doc = { name, avatar_initials: initials };
+        } else {
+          throw e;
+        }
       }
-      
-      const doc = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.PROFILES,
-        user.$id,
-        updatedData,
-        [
-          Permission.read(Role.any()),
-          Permission.update(Role.user(user.$id)),
-          Permission.delete(Role.user(user.$id))
-        ]
-      );
-      
-      setProfile({
-        id: doc.$id,
-        name: doc.name,
-        email: doc.email,
-        avatar_initials: doc.avatar_initials,
-        designation: doc.designation,
-        avatar_url: doc.avatar_url,
-        color: doc.color,
-      });
+
+      setProfile(prev => ({
+        ...prev,
+        name: doc.name || name,
+        avatar_initials: doc.avatar_initials || initials,
+      }));
       return { data: doc, error: null };
     } catch (error) {
       console.error('Error updating profile:', error);

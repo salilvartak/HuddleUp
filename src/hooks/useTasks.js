@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { databases, DATABASE_ID, COLLECTIONS, client, account, ID } from '../lib/appwrite';
 import { Query } from 'appwrite';
+import { STATUSES, PRIORITIES } from '../data/constants';
 
 export const useTasks = (projectId) => {
   const [tasks, setTasks] = useState([]);
@@ -70,21 +71,46 @@ export const useTasks = (projectId) => {
           }).catch(() => {});
         }
       } else {
-        // ... (rest same)
         let currentUser;
         try { currentUser = await account.get(); } catch {
           if (fetchId === lastFetchIdRef.current) setLoading(false);
           return;
         }
 
-        const [tasksResponse, activityResponse] = await Promise.all([
-          databases.listDocuments(DATABASE_ID, COLLECTIONS.TASKS, [Query.equal('assignee_id', [currentUser.$id]), Query.orderDesc('$createdAt'), Query.limit(200)]),
-          databases.listDocuments(DATABASE_ID, COLLECTIONS.ACTIVITY, [Query.orderDesc('created_at'), Query.limit(20)])
+        // Fetch all workspace activities + assigned tasks in parallel
+        const [activityResponse, assignedResponse] = await Promise.all([
+          databases.listDocuments(DATABASE_ID, COLLECTIONS.ACTIVITY, [
+            Query.orderDesc('created_at'),
+            Query.limit(100)
+          ]),
+          databases.listDocuments(DATABASE_ID, COLLECTIONS.TASKS, [
+            Query.equal('assignee_id', currentUser.$id),
+            Query.limit(200)
+          ])
         ]);
 
         if (fetchId !== lastFetchIdRef.current) return;
 
-        setTasks(tasksResponse.documents.map(doc => ({ ...doc, id: doc.$id })));
+        // Fetch task details for activities whose tasks aren't already in assignedResponse
+        const assignedIds = new Set(assignedResponse.documents.map(t => t.$id));
+        const missingTaskIds = [...new Set(
+          activityResponse.documents.map(a => a.task_id).filter(id => id && !assignedIds.has(id))
+        )].slice(0, 100);
+
+        let extraTasks = [];
+        if (missingTaskIds.length > 0) {
+          try {
+            const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.TASKS, [
+              Query.equal('$id', missingTaskIds),
+              Query.limit(100)
+            ]);
+            extraTasks = res.documents;
+          } catch {}
+        }
+
+        if (fetchId !== lastFetchIdRef.current) return;
+
+        setTasks([...assignedResponse.documents, ...extraTasks].map(doc => ({ ...doc, id: doc.$id })));
         setActivities(activityResponse.documents.map(doc => ({ ...doc, id: doc.$id })));
       }
     } catch (error) {
@@ -173,19 +199,15 @@ export const useTasks = (projectId) => {
     try {
       const user = await account.get();
       if (!user) return;
-      let actorName = user.name || user.email.split('@')[0];
-      try {
-        const profileDoc = await databases.getDocument(DATABASE_ID, COLLECTIONS.PROFILES, user.$id);
-        if (profileDoc.name) actorName = profileDoc.name;
-      } catch { }
-
-      await databases.createDocument(DATABASE_ID, COLLECTIONS.ACTIVITY, ID.unique(), {
+      const doc = await databases.createDocument(DATABASE_ID, COLLECTIONS.ACTIVITY, ID.unique(), {
         task_id: taskId,
         actor_id: user.$id,
-        actor_name: actorName,
         action,
         created_at: new Date().toISOString(),
       });
+
+      // Optimistically prepend so the Activity tab updates instantly
+      setActivities(prev => [{ ...doc, id: doc.$id }, ...prev].slice(0, 100));
     } catch (error) {
       console.error('Error logging activity:', error);
     }
@@ -213,13 +235,14 @@ export const useTasks = (projectId) => {
   const updateTask = async (taskId, updates) => {
     try {
       const originalTask = tasks.find(t => t.id === taskId);
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
       const data = await databases.updateDocument(DATABASE_ID, COLLECTIONS.TASKS, taskId, updates);
       const formatted = { ...data, id: data.$id };
       if (originalTask) {
         if (updates.status && updates.status !== originalTask.status)
-          await logActivity(taskId, `changed status to ${updates.status}`);
+          await logActivity(taskId, `changed status to ${STATUSES.find(s => s.id === updates.status)?.label ?? updates.status}`);
         if (updates.priority && updates.priority !== originalTask.priority)
-          await logActivity(taskId, `changed priority to ${updates.priority}`);
+          await logActivity(taskId, `changed priority to ${PRIORITIES.find(p => p.id === updates.priority)?.label ?? updates.priority}`);
       }
       return { data: formatted, error: null };
     } catch (error) {
@@ -254,10 +277,18 @@ export const useTasks = (projectId) => {
 
   const updateGroup = async (groupId, updates) => {
     try {
+      // Optimistically remove group from current view when moving to another project
+      if (updates.project_id && updates.project_id !== projectId) {
+        setGroups(prev => prev.filter(g => g.id !== groupId));
+      } else {
+        setGroups(prev => prev.map(g => g.id === groupId ? { ...g, ...updates } : g));
+      }
       const data = await databases.updateDocument(DATABASE_ID, COLLECTIONS.GROUPS, groupId, updates);
       return { data: { ...data, id: data.$id }, error: null };
     } catch (error) {
       console.error('Error updating group:', error);
+      // Revert on error
+      fetchTasks();
       return { data: null, error };
     }
   };

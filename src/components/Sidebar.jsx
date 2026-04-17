@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { useTasksContext } from '../context/TasksContext';
 import { Avatar } from './Badges';
+import { Droppable } from '@hello-pangea/dnd';
 import logo from '../assets/logo.png';
 
 export default function Sidebar() {
@@ -146,16 +147,24 @@ export default function Sidebar() {
 
             return (
               <div key={p.id}>
-                <div
-                  className={`group/proj flex items-center gap-1.5 px-2 py-2 border-2 cursor-pointer transition-all duration-100
-                    ${isSelected ? 'border-border-default bg-[#10b981]/10 shadow-neo-sm' : 'border-transparent hover:border-border-default hover:bg-background-hover'}`}
-                  onClick={() => { setSelectedProjectId(p.id); setSelectedGroupId(null); setMode('project'); setView('list'); }}
-                >
-                  <button onClick={e => toggleExpand(p.id, e)} className={`w-4 h-4 flex items-center justify-center text-[10px] font-black text-text-secondary transition-transform duration-150 shrink-0 ${isExpanded ? 'rotate-90' : ''}`}>▶</button>
-                  <span className="flex-1 text-sm font-bold truncate text-text-primary">{p.name}</span>
-                  {p.taskCount > 0 && <span className="text-[11px] font-black text-text-secondary border border-border-default px-1 bg-background-surface">{p.taskCount}</span>}
-                  <button onClick={e => handleDeleteProject(e, p)} className="opacity-0 group-hover/proj:opacity-100 text-xs font-black text-red-500 hover:text-red-700 transition-opacity px-0.5">×</button>
-                </div>
+                <Droppable droppableId={`project-${p.id}`} type="group" isDropDisabled={isSelected}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={`group/proj flex items-center gap-1.5 px-2 py-2 border-2 cursor-pointer transition-all duration-100
+                        ${isSelected ? 'border-border-default bg-[#10b981]/10 shadow-neo-sm' : 'border-transparent hover:border-border-default hover:bg-background-hover'}
+                        ${snapshot.isDraggingOver ? 'ring-2 ring-inset ring-[#10b981] bg-[#10b981]/20' : ''}`}
+                      onClick={() => { setSelectedProjectId(p.id); setSelectedGroupId(null); setMode('project'); setView('list'); }}
+                    >
+                      <button onClick={e => toggleExpand(p.id, e)} className={`w-4 h-4 flex items-center justify-center text-[10px] font-black text-text-secondary transition-transform duration-150 shrink-0 ${isExpanded ? 'rotate-90' : ''}`}>▶</button>
+                      <span className="flex-1 text-sm font-bold truncate text-text-primary">{p.name}</span>
+                      {p.taskCount > 0 && <span className="text-[11px] font-black text-text-secondary border border-border-default px-1 bg-background-surface">{p.taskCount}</span>}
+                      <button onClick={e => handleDeleteProject(e, p)} className="opacity-0 group-hover/proj:opacity-100 text-xs font-black text-red-500 hover:text-red-700 transition-opacity px-0.5">×</button>
+                      <div className="hidden">{provided.placeholder}</div>
+                    </div>
+                  )}
+                </Droppable>
 
                 {isExpanded && projectGroups.length > 0 && (
                   <div className="ml-5 flex flex-col gap-0.5 mt-0.5 border-l-2 border-border-default/20 pl-2">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { useTasksContext } from '../context/TasksContext';
-import { STATUSES } from '../data/constants';
+import { STATUSES, sortTasksByPriority } from '../data/constants';
 
 export default function SearchModal({ onClose }) {
   const { openTask, setSelectedProjectId, setMode, projects } = useAppContext();
@@ -21,9 +21,10 @@ export default function SearchModal({ onClose }) {
   }, [onClose]);
 
   // Filter tasks — search title + include subtasks
-  const results = query.trim().length < 1 ? [] : tasks.filter(t =>
+  const foundTasks = query.trim().length < 1 ? [] : tasks.filter(t =>
     t.title.toLowerCase().includes(query.toLowerCase())
-  ).slice(0, 12);
+  );
+  const results = sortTasksByPriority(foundTasks).slice(0, 12);
 
   // Reset active index when results change
   useEffect(() => { setActiveIndex(0); }, [query]);

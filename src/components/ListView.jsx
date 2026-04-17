@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { useTasksContext } from '../context/TasksContext';
 import { Avatar, StatusDropdown, PriorityDropdown, AssigneeDropdown } from './Badges';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { Droppable, Draggable } from '@hello-pangea/dnd';
 import { format, differenceInCalendarDays } from 'date-fns';
-import { STATUSES } from '../data/constants';
+import { STATUSES, sortTasksByPriority } from '../data/constants';
 
 // ─── Priority pill ────────────────────────────────────────────────────────────
 const PRIORITY_STYLES = {
@@ -56,7 +56,7 @@ function DueDateText({ date }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ListView({ tasks, searchQuery, statusFilter, priorityFilter, mode }) {
-  const { workspace, openTask, openCreatePanel, showConfirm, members } = useAppContext();
+  const { workspace, openTask, openCreatePanel, showConfirm, members, canEdit } = useAppContext();
   const { groups, activities, updateTask, reorderTasks, reorderGroups, deleteGroup, updateGroup, deleteTask } = useTasksContext();
 
   const [editingGroupId,   setEditingGroupId]   = useState(null);
@@ -133,6 +133,8 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
+  const sortedTasks = sortTasksByPriority(filteredTasks);
+
   const openDropdown = (taskId, type, e) => {
     e.stopPropagation();
     const el = e.currentTarget;
@@ -142,19 +144,6 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
   };
   const closeDropdown = () => setActiveDropdown(null);
 
-  const onDragEnd = async (result) => {
-    const { destination, source, draggableId, type } = result;
-    if (!destination) return;
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
-    
-    if (type === 'group') {
-      reorderGroups(draggableId, destination.index);
-      return;
-    }
-
-    reorderTasks(draggableId, destination.droppableId, destination.index, source.droppableId);
-    await updateTask(draggableId, { group_id: destination.droppableId, position: destination.index });
-  };
 
   // ─── Activity mode ──────────────────────────────────────────────────────────
   if (mode === 'activity') {
@@ -163,21 +152,33 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
         {activities.length === 0 ? (
           <div className="text-center py-20 text-text-faint text-sm font-semibold">No recent activity</div>
         ) : (
-          activities.map((act, i) => (
-            <div key={act.id || i} className="flex items-start gap-3 py-3 border-b-2 border-border-subtle">
-              <Avatar size="sm" userId={act.actor_id} />
-              <div className="flex-1 min-w-0">
-                <span className="text-sm font-black text-text-primary">{act.actor_name || 'Someone'}</span>
-                <span className="text-sm text-text-muted font-medium"> {act.action} </span>
-                <span className="text-sm font-bold text-accent-blue cursor-pointer hover:underline" onClick={() => openTask(act.task_id)}>
-                  task #{act.task_id?.slice(-4)}
-                </span>
-                <div className="text-xs text-text-faint font-semibold mt-0.5">
-                  {act.created_at ? format(new Date(act.created_at), 'MMM d, h:mm a') : 'Recently'}
+          activities.map((act, i) => {
+            const actorMember = members.find(m => m.user_id === act.actor_id);
+            const actorName = act.actor_name || actorMember?.profile?.name || 'Unknown';
+            const actorInitials = actorMember?.profile?.avatar_initials ||
+              (actorName !== 'Unknown' ? actorName.trim().split(/\s+/).map(n => n[0]).join('').substring(0, 2).toUpperCase() : '?');
+            const relatedTask = tasks.find(t => t.id === act.task_id || t.$id === act.task_id);
+            const taskLabel = relatedTask?.title || (act.task_id ? `task #${act.task_id.slice(-4)}` : 'a task');
+            return (
+              <div key={act.id || i} className="flex items-start gap-3 py-3 border-b-2 border-border-subtle">
+                <Avatar size="sm" initials={actorInitials} userId={act.actor_id} />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-black text-text-primary">{actorName}</span>
+                  <span className="text-sm text-text-muted font-medium"> {act.action} </span>
+                  <span
+                    className="text-sm font-bold text-accent-blue cursor-pointer hover:underline"
+                    onClick={() => act.task_id && openTask(act.task_id)}
+                    title={relatedTask?.title}
+                  >
+                    {taskLabel}
+                  </span>
+                  <div className="text-xs text-text-faint font-semibold mt-0.5">
+                    {act.created_at ? format(new Date(act.created_at), 'MMM d, h:mm a') : 'Recently'}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     );
@@ -189,21 +190,20 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
 
   // All visible top-level task IDs for select-all
   const allVisibleTaskIds = effectiveGroups.flatMap(g =>
-    (mode === 'my-tasks' ? filteredTasks : filteredTasks.filter(t => t.group_id === g.id)).filter(t => !t.parent_id).map(t => t.id)
+    (mode === 'my-tasks' ? sortedTasks : sortedTasks.filter(t => t.group_id === g.id)).filter(t => !t.parent_id).map(t => t.id)
   );
 
   return (
     <div className="flex flex-col pb-24">
-      <DragDropContext onDragEnd={onDragEnd}>
         <Droppable droppableId="groups-board" type="group" direction="vertical" isDropDisabled={mode === 'my-tasks'}>
           {(providedGroup) => (
             <div ref={providedGroup.innerRef} {...providedGroup.droppableProps}>
               {effectiveGroups.map((group, index) => {
                 const isCollapsed = collapsedGroups[group.id];
                 const groupTasks  = (mode === 'my-tasks'
-                  ? filteredTasks
-                  : filteredTasks.filter(t => t.group_id === group.id)
-                ).filter(t => !t.parent_id);
+                   ? sortedTasks
+                   : sortedTasks.filter(t => t.group_id === group.id)
+                 ).filter(t => !t.parent_id);
                 const groupTaskIds = groupTasks.map(t => t.id);
                 const allGroupSelected = groupTaskIds.length > 0 && groupTaskIds.every(id => selectedIds.has(id));
 
@@ -252,7 +252,7 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
                   · {groupTasks.length} {groupTasks.length === 1 ? 'task' : 'tasks'}
                 </span>
 
-                {mode === 'project' && (
+                {mode === 'project' && canEdit && (
                   <button
                     onClick={() => handleDeleteGroup(group)}
                     className="ml-auto opacity-0 group-hover/gh:opacity-100 text-xs font-black text-red-500 hover:text-red-700 transition-opacity border-2 border-transparent hover:border-red-300 px-1.5 py-0.5"
@@ -289,7 +289,7 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
                   {(provided) => (
                     <div {...provided.droppableProps} ref={provided.innerRef}>
                       {groupTasks.map((task, index) => {
-                        const subtasks   = filteredTasks.filter(t => t.parent_id === task.id);
+                        const subtasks   = sortedTasks.filter(t => t.parent_id === task.id);
                         const isExpanded = expandedTasks[task.id];
                         const isSelected = selectedIds.has(task.id);
 
@@ -349,16 +349,16 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
 
                                   {/* Status */}
                                   <div className="w-36 shrink-0">
-                                    <StatusBadge status={task.status} onClick={e => openDropdown(task.id, 'status', e)} />
-                                    {activeDropdown?.taskId === task.id && activeDropdown.type === 'status' && (
+                                    <StatusBadge status={task.status} onClick={canEdit ? e => openDropdown(task.id, 'status', e) : undefined} />
+                                    {canEdit && activeDropdown?.taskId === task.id && activeDropdown.type === 'status' && (
                                       <StatusDropdown current={task.status} anchorEl={activeDropdown.el} onChange={val => { updateTask(task.id, { status: val }); closeDropdown(); }} onClose={closeDropdown} />
                                     )}
                                   </div>
 
                                   {/* Priority */}
                                   <div className="w-28 shrink-0">
-                                    <PriorityPill priority={task.priority} onClick={e => openDropdown(task.id, 'priority', e)} />
-                                    {activeDropdown?.taskId === task.id && activeDropdown.type === 'priority' && (
+                                    <PriorityPill priority={task.priority} onClick={canEdit ? e => openDropdown(task.id, 'priority', e) : undefined} />
+                                    {canEdit && activeDropdown?.taskId === task.id && activeDropdown.type === 'priority' && (
                                       <PriorityDropdown current={task.priority} anchorEl={activeDropdown.el} onChange={val => { updateTask(task.id, { priority: val }); closeDropdown(); }} onClose={closeDropdown} />
                                     )}
                                   </div>
@@ -423,7 +423,7 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
               )}
 
               {/* ── Add Task ── */}
-              {mode === 'project' && !isCollapsed && (
+              {mode === 'project' && !isCollapsed && canEdit && (
                 <button
                   onClick={() => openCreatePanel('task', { groupId: group.id })}
                   className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-text-faint hover:text-text-primary hover:bg-background-hover transition-colors w-full text-left border-b-2 border-border-subtle"
@@ -440,10 +440,8 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
             </div>
           )}
         </Droppable>
-      </DragDropContext>
-
       {/* ── Add Group ── */}
-      {mode === 'project' && (
+      {mode === 'project' && canEdit && (
         <div className="px-6 pt-4">
           <button
             onClick={() => openCreatePanel('group')}

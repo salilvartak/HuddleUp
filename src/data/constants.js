@@ -17,6 +17,16 @@ export const PRIORITIES = [
 
 export const PRIORITY_ARROWS = { urgent: "↑↑", high: "↑", medium: "→", low: "↓" };
 
+export const PRIORITY_WEIGHTS = { urgent: 4, high: 3, medium: 2, low: 1 };
+
+export const sortTasksByPriority = (tasks) => {
+  return [...tasks].sort((a, b) => {
+    const weightA = PRIORITY_WEIGHTS[a.priority] || 0;
+    const weightB = PRIORITY_WEIGHTS[b.priority] || 0;
+    return weightB - weightA;
+  });
+};
+
 export const MEMBER_COLOR_PALETTE = [
   "#2563EB", "#7C3AED", "#059669", "#D97706",
   "#DC2626", "#0891B2", "#DB2777", "#65A30D",
