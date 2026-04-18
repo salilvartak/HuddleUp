@@ -43,6 +43,14 @@
   ::-webkit-scrollbar-thumb { background: var(--text-faint); border-radius: 2px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
   ::-webkit-scrollbar-corner { background: transparent; }
+
+  /* Mobile touch improvements */
+  * { -webkit-tap-highlight-color: transparent; }
+  html { touch-action: manipulation; }
+  input, textarea, select, button { font-size: max(16px, 1em); }
+  @media (max-width: 768px) {
+    input, textarea, select { font-size: 16px; } /* Prevent iOS zoom on focus */
+  }
 }
 
 @layer components {

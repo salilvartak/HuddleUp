@@ -6,7 +6,7 @@ import KanbanView from './KanbanView';
 import { STATUSES, PRIORITIES } from '../data/constants';
 
 export default function MainContent() {
-  const { view, selectedProjectId, projects, mode, setShowSearch } = useAppContext();
+  const { view, selectedProjectId, projects, mode, setShowSearch, setMobileSidebarOpen } = useAppContext();
   const { tasks, loading } = useTasksContext();
   const [searchQuery,    setSearchQuery]    = useState('');
   const [statusFilter,   setStatusFilter]   = useState('');
@@ -19,28 +19,37 @@ export default function MainContent() {
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-background-primary overflow-hidden">
       {/* Toolbar */}
-      <header className="h-14 border-b-2 border-border-default flex items-center justify-between px-6 bg-background-surface shrink-0 z-20">
-        <div className="flex items-center gap-3 min-w-0">
-          <h2 className="font-black text-base truncate text-text-primary uppercase tracking-tight">
+      <header className="h-14 border-b-2 border-border-default flex items-center gap-2 px-3 md:px-6 bg-background-surface shrink-0 z-20">
+        {/* Mobile hamburger */}
+        <button
+          className="md:hidden w-9 h-9 border-2 border-border-default flex items-center justify-center font-black text-text-secondary hover:bg-background-hover transition-colors shrink-0"
+          onClick={() => setMobileSidebarOpen(true)}
+          aria-label="Open menu"
+        >
+          ☰
+        </button>
+
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <h2 className="font-black text-sm md:text-base truncate text-text-primary uppercase tracking-tight">
             {mode === 'my-tasks' ? 'My Tasks' : mode === 'activity' ? 'Activity' : activeProject?.name || 'Project'}
           </h2>
           {mode === 'project' && totalTasks > 0 && (
-            <span className="px-2 py-0.5 border-2 border-border-default text-xs font-black text-text-secondary bg-background-surface whitespace-nowrap">
+            <span className="hidden sm:inline px-2 py-0.5 border-2 border-border-default text-xs font-black text-text-secondary bg-background-surface whitespace-nowrap">
               {completedTasks}/{totalTasks} done
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           <input
-            className="bg-background-surface border-2 border-border-default px-3 py-1.5 text-sm font-medium text-text-primary outline-none w-40 focus:w-56 focus:shadow-neo transition-all duration-200 placeholder:text-text-faint"
+            className="bg-background-surface border-2 border-border-default px-2 py-1.5 text-sm font-medium text-text-primary outline-none w-24 sm:w-36 focus:w-36 sm:focus:w-48 focus:shadow-neo transition-all duration-200 placeholder:text-text-faint"
             placeholder="Filter..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
 
           <select
-            className="bg-background-surface border-2 border-border-default px-2 py-1.5 text-xs font-bold text-text-primary outline-none cursor-pointer appearance-none hover:bg-background-hover transition-colors"
+            className="hidden sm:block bg-background-surface border-2 border-border-default px-2 py-1.5 text-xs font-bold text-text-primary outline-none cursor-pointer appearance-none hover:bg-background-hover transition-colors"
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
           >
@@ -49,7 +58,7 @@ export default function MainContent() {
           </select>
 
           <select
-            className="bg-background-surface border-2 border-border-default px-2 py-1.5 text-xs font-bold text-text-primary outline-none cursor-pointer appearance-none hover:bg-background-hover transition-colors"
+            className="hidden sm:block bg-background-surface border-2 border-border-default px-2 py-1.5 text-xs font-bold text-text-primary outline-none cursor-pointer appearance-none hover:bg-background-hover transition-colors"
             value={priorityFilter}
             onChange={e => setPriorityFilter(e.target.value)}
           >
@@ -59,16 +68,16 @@ export default function MainContent() {
 
           <button
             onClick={() => setShowSearch(true)}
-            className="h-8 px-3 border-2 border-border-default text-xs font-black text-text-muted hover:bg-background-hover transition-colors flex items-center gap-1.5"
+            className="h-8 px-2 md:px-3 border-2 border-border-default text-xs font-black text-text-muted hover:bg-background-hover transition-colors flex items-center gap-1"
             title="Global search (⌘K)"
           >
-            ⌕ <span className="text-text-faint">⌘K</span>
+            ⌕<span className="hidden md:inline text-text-faint ml-1">⌘K</span>
           </button>
         </div>
       </header>
 
       {/* Main View */}
-      <main className="flex-1 overflow-auto relative">
+      <main className="flex-1 overflow-auto relative pb-14 md:pb-0">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-8 h-8 border-4 border-border-default border-t-[#10b981] rounded-full animate-spin" />

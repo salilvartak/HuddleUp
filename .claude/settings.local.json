@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e \"const {differenceInCalendarDays} = require\\('date-fns'\\); console.log\\(typeof differenceInCalendarDays\\)\")"
+      "Bash(node -e \"const {differenceInCalendarDays} = require\\('date-fns'\\); console.log\\(typeof differenceInCalendarDays\\)\")",
+      "Bash(npm run *)"
     ]
   }
 }

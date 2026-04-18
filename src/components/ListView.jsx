@@ -216,7 +216,7 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
                         className="mb-1 bg-background-primary"
                       >
                         {/* ── Group Header ── */}
-                        <div className="flex items-center gap-3 px-6 py-4 group/gh">
+                        <div className="flex items-center gap-2 md:gap-3 px-3 md:px-6 py-3 md:py-4 group/gh">
                           <div {...providedDraggable.dragHandleProps} className="text-text-faint hover:text-text-primary cursor-grab active:cursor-grabbing mr-1">
                             ⋮⋮
                           </div>
@@ -264,7 +264,7 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
 
               {/* ── Column Labels ── */}
               {!isCollapsed && (
-                <div className="flex items-center px-6 pb-2 border-b-2 border-border-default">
+                <div className="flex items-center px-3 md:px-6 pb-2 border-b-2 border-border-default">
                   {/* Checkbox select-all */}
                   <div className="w-6 shrink-0 flex items-center justify-center mr-2">
                     <input
@@ -276,9 +276,9 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
                   </div>
                   <div className="shrink-0" style={{ width: '36px' }} />
                   <div className="flex-1 text-[11px] text-text-faint font-black uppercase tracking-widest">Name</div>
-                  <div className="w-36 text-[11px] text-text-faint font-black uppercase tracking-widest">Status</div>
-                  <div className="w-28 text-[11px] text-text-faint font-black uppercase tracking-widest">Priority</div>
-                  <div className="w-28 text-[11px] text-text-faint font-black uppercase tracking-widest">Due date</div>
+                  <div className="w-28 md:w-36 text-[11px] text-text-faint font-black uppercase tracking-widest">Status</div>
+                  <div className="hidden sm:block w-28 text-[11px] text-text-faint font-black uppercase tracking-widest">Priority</div>
+                  <div className="hidden sm:block w-28 text-[11px] text-text-faint font-black uppercase tracking-widest">Due date</div>
                   <div className="w-8" />
                 </div>
               )}
@@ -302,7 +302,7 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
                                 className={snapshot.isDragging ? 'opacity-70' : ''}
                               >
                                 {/* ── Main task row ── */}
-                                <div className={`flex items-center px-6 py-3 border-b-2 border-border-subtle transition-colors group/row
+                                <div className={`flex items-center px-3 md:px-6 py-3 border-b-2 border-border-subtle transition-colors group/row
                                   ${isSelected ? 'bg-[#10b981]/8' : snapshot.isDragging ? 'bg-background-hover shadow-neo' : 'hover:bg-background-hover'}`}>
 
                                   {/* Checkbox */}
@@ -348,7 +348,7 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
                                   </div>
 
                                   {/* Status */}
-                                  <div className="w-36 shrink-0">
+                                  <div className="w-28 md:w-36 shrink-0">
                                     <StatusBadge status={task.status} onClick={canEdit ? e => openDropdown(task.id, 'status', e) : undefined} />
                                     {canEdit && activeDropdown?.taskId === task.id && activeDropdown.type === 'status' && (
                                       <StatusDropdown current={task.status} anchorEl={activeDropdown.el} onChange={val => { updateTask(task.id, { status: val }); closeDropdown(); }} onClose={closeDropdown} />
@@ -356,7 +356,7 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
                                   </div>
 
                                   {/* Priority */}
-                                  <div className="w-28 shrink-0">
+                                  <div className="hidden sm:block w-28 shrink-0">
                                     <PriorityPill priority={task.priority} onClick={canEdit ? e => openDropdown(task.id, 'priority', e) : undefined} />
                                     {canEdit && activeDropdown?.taskId === task.id && activeDropdown.type === 'priority' && (
                                       <PriorityDropdown current={task.priority} anchorEl={activeDropdown.el} onChange={val => { updateTask(task.id, { priority: val }); closeDropdown(); }} onClose={closeDropdown} />
@@ -364,7 +364,7 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
                                   </div>
 
                                   {/* Due date */}
-                                  <div className="w-28 shrink-0">
+                                  <div className="hidden sm:block w-28 shrink-0">
                                     <DueDateText date={task.due_date} />
                                   </div>
 
@@ -398,16 +398,16 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
                                     <div className="flex-1 py-2.5 px-3 text-sm font-semibold text-text-muted cursor-pointer hover:text-text-primary transition-colors truncate" onClick={() => openTask(sub.id)}>
                                       {sub.title}
                                     </div>
-                                    <div className="w-36 shrink-0 py-2.5">
+                                    <div className="w-28 md:w-36 shrink-0 py-2.5">
                                       <StatusBadge status={sub.status} onClick={e => openDropdown(sub.id, 'status', e)} />
                                     </div>
-                                    <div className="w-28 shrink-0 py-2.5">
+                                    <div className="hidden sm:block w-28 shrink-0 py-2.5">
                                       <PriorityPill priority={sub.priority} onClick={e => openDropdown(sub.id, 'priority', e)} />
                                       {activeDropdown?.taskId === sub.id && activeDropdown.type === 'priority' && (
                                         <PriorityDropdown current={sub.priority} anchorEl={activeDropdown.el} onChange={val => { updateTask(sub.id, { priority: val }); closeDropdown(); }} onClose={closeDropdown} />
                                       )}
                                     </div>
-                                    <div className="w-28 shrink-0 py-2.5"><DueDateText date={sub.due_date} /></div>
+                                    <div className="hidden sm:block w-28 shrink-0 py-2.5"><DueDateText date={sub.due_date} /></div>
                                     <div className="w-8" />
                                   </div>
                                 ))}
@@ -426,7 +426,7 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
               {mode === 'project' && !isCollapsed && canEdit && (
                 <button
                   onClick={() => openCreatePanel('task', { groupId: group.id })}
-                  className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-text-faint hover:text-text-primary hover:bg-background-hover transition-colors w-full text-left border-b-2 border-border-subtle"
+                  className="flex items-center gap-2 px-3 md:px-6 py-3 text-sm font-bold text-text-faint hover:text-text-primary hover:bg-background-hover transition-colors w-full text-left border-b-2 border-border-subtle"
                 >
                   + Add task
                 </button>
@@ -454,7 +454,7 @@ export default function ListView({ tasks, searchQuery, statusFilter, priorityFil
 
       {/* ── Bulk Action Bar ── */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 bg-background-surface border-2 border-border-default shadow-[6px_6px_0px_var(--shadow-color)] px-4 py-3">
+        <div className="fixed bottom-16 md:bottom-6 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 bg-background-surface border-2 border-border-default shadow-[6px_6px_0px_var(--shadow-color)] px-4 py-3">
           <span className="text-sm font-black text-text-primary mr-2">{selectedIds.size} selected</span>
 
           {/* Status */}

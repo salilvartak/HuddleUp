@@ -37,8 +37,15 @@ export default function TaskModal() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.id]);
 
+  const [isMobile, setIsMobile] = React.useState(() => window.innerWidth < 768);
   const [width, setWidth] = useState(window.innerWidth < 1024 ? Math.min(window.innerWidth, 480) : 600);
   const [isResizing, setIsResizing] = useState(false);
+
+  React.useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const startResizing = React.useCallback((e) => {
     setIsResizing(true);
@@ -105,23 +112,31 @@ export default function TaskModal() {
   const assigneeProfile = getMemberProfile(task.assignee_id);
 
   return (
-    <div className={`fixed inset-0 z-[100] flex justify-end ${isResizing ? 'cursor-col-resize select-none' : ''}`}>
+    <div className={`fixed inset-0 z-[100] ${isMobile ? 'flex flex-col justify-end' : 'flex justify-end'} ${isResizing ? 'cursor-col-resize select-none' : ''}`}>
       <div className="absolute inset-0 bg-[#1a1a1a]/30" onClick={closeTask} />
 
-      {/* Resize Handle */}
-      <div
-        onMouseDown={startResizing}
-        className="absolute bottom-0 top-0 w-1.5 cursor-col-resize hover:bg-accent-green/50 transition-colors z-[110]"
-        style={{ right: width }}
-      />
+      {/* Resize Handle (desktop only) */}
+      {!isMobile && (
+        <div
+          onMouseDown={startResizing}
+          className="absolute bottom-0 top-0 w-1.5 cursor-col-resize hover:bg-accent-green/50 transition-colors z-[110]"
+          style={{ right: width }}
+        />
+      )}
 
-      <div 
-        className="relative bg-background-surface border-l-2 border-border-default h-screen flex flex-col overflow-hidden animate-slide-in shadow-[-6px_0px_0px_var(--shadow-color)]"
-        style={{ width: `${width}px` }}
+      <div
+        className={`relative bg-background-surface flex flex-col overflow-hidden shadow-[-6px_0px_0px_var(--shadow-color)]
+          ${isMobile
+            ? 'w-full h-[92vh] border-t-2 border-border-default animate-slide-up'
+            : 'border-l-2 border-border-default h-screen animate-slide-in'
+          }`}
+        style={isMobile ? undefined : { width: `${width}px` }}
       >
         <style>{`
           @keyframes slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
           .animate-slide-in { animation: slide-in 0.25s ease-out; }
+          @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+          .animate-slide-up { animation: slide-up 0.3s ease-out; }
         `}</style>
 
         {/* Header */}
@@ -139,7 +154,7 @@ export default function TaskModal() {
 
         <div className="flex-1 overflow-y-auto">
           {/* Properties */}
-          <div className="px-6 pt-6 pb-4 grid grid-cols-2 gap-4 border-b-2 border-border-subtle">
+          <div className="px-4 md:px-6 pt-5 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3 border-b-2 border-border-subtle">
             {/* Status */}
             <div className="flex items-center gap-3">
               <span className="w-16 text-[11px] font-black uppercase tracking-widest text-text-faint shrink-0">Status</span>
@@ -177,7 +192,7 @@ export default function TaskModal() {
           </div>
 
           {/* Title & Description */}
-          <div className="px-6 py-5 border-b-2 border-border-subtle">
+          <div className="px-4 md:px-6 py-5 border-b-2 border-border-subtle">
             <textarea
               className="w-full bg-transparent border-none outline-none text-xl font-black text-text-primary resize-none leading-snug mb-4 placeholder:text-text-faint"
               rows={2}
@@ -196,12 +211,12 @@ export default function TaskModal() {
           </div>
 
           {/* Tabs */}
-          <div className="flex px-6 border-b-2 border-border-default">
+          <div className="flex px-4 md:px-6 border-b-2 border-border-default">
             {['comments', 'activity', 'subtasks'].map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`px-1 py-3 mr-6 text-sm font-black uppercase tracking-wide transition-all border-b-2 -mb-[2px]
+                className={`px-1 py-3 mr-4 md:mr-6 text-xs md:text-sm font-black uppercase tracking-wide transition-all border-b-2 -mb-[2px]
                   ${tab === t ? 'border-border-default text-text-primary' : 'border-transparent text-text-faint hover:text-text-muted'}`}
               >
                 {t === 'subtasks' ? `Subtasks (${subtasks.length})` : t}
@@ -209,7 +224,7 @@ export default function TaskModal() {
             ))}
           </div>
 
-          <div className="px-6 pt-5 pb-8">
+          <div className="px-4 md:px-6 pt-5 pb-8">
             {/* Comments */}
             {tab === 'comments' && (
               <div className="flex flex-col gap-5">

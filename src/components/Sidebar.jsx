@@ -13,8 +13,10 @@ export default function Sidebar() {
     showConfirm, deleteProject, openCreatePanel,
     isDark, toggleTheme, setShowSearch,
     user, profile, setShowProfileModal,
-    members
+    members, mobileSidebarOpen, setMobileSidebarOpen,
   } = useAppContext();
+
+  const closeMobileDrawer = () => setMobileSidebarOpen(false);
 
   const { groups } = useTasksContext();
   const [expandedProjects, setExpandedProjects] = useState({});
@@ -70,9 +72,9 @@ export default function Sidebar() {
 
   const isSettingsView = view === 'settings';
 
-  if (sidebarCollapsed) {
+  if (sidebarCollapsed && !mobileSidebarOpen) {
     return (
-      <div className="w-14 h-screen bg-background-surface border-r-2 border-border-default flex flex-col items-center py-4 gap-3 z-50">
+      <div className="hidden md:flex w-14 h-screen bg-background-surface border-r-2 border-border-default flex-col items-center py-4 gap-3 z-50 shrink-0">
         <button onClick={() => setSidebarCollapsed(false)} className="w-8 h-8 border-2 border-border-default flex items-center justify-center font-black text-text-secondary hover:bg-background-hover transition-colors text-lg">›</button>
         <img src={logo} alt="T" className="w-8 h-8 object-contain" />
         <div className="flex flex-col gap-2 mt-4">
@@ -83,8 +85,8 @@ export default function Sidebar() {
             >{p.name.slice(0, 2).toUpperCase()}</button>
           ))}
         </div>
-        <button 
-          onClick={() => setView('settings')} 
+        <button
+          onClick={() => setView('settings')}
           className={`w-8 h-8 border-2 border-border-default flex items-center justify-center mt-auto hover:bg-background-hover transition-colors ${isSettingsView ? 'bg-text-primary text-background-primary' : 'text-text-muted'}`}
           title="Settings"
         >
@@ -95,8 +97,13 @@ export default function Sidebar() {
   }
 
   return (
-    <div 
-      className="h-screen bg-background-surface border-r-2 border-border-default flex flex-col relative shrink-0 z-50 transition-[width] duration-75"
+    <div
+      className={`
+        fixed md:relative inset-y-0 left-0
+        h-screen bg-background-surface border-r-2 border-border-default flex flex-col shrink-0 z-[60]
+        transition-transform duration-300 ease-in-out
+        ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}
       style={{ width: `${sidebarWidth}px` }}
     >
       <div className="h-14 flex items-center justify-between px-4 border-b-2 border-border-default shrink-0">
@@ -104,7 +111,12 @@ export default function Sidebar() {
           <img src={logo} alt="T" className="w-7 h-7 object-contain shrink-0" />
           <span className="text-sm font-black truncate text-text-primary uppercase tracking-tight">{workspace?.name || 'HuddleUp'}</span>
         </div>
-        <button onClick={() => setSidebarCollapsed(true)} className="w-7 h-7 border-2 border-border-default flex items-center justify-center font-black text-text-secondary hover:bg-background-hover transition-colors shrink-0">‹</button>
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Mobile close button */}
+          <button onClick={closeMobileDrawer} className="md:hidden w-7 h-7 border-2 border-border-default flex items-center justify-center font-black text-text-secondary hover:bg-background-hover transition-colors">×</button>
+          {/* Desktop collapse button */}
+          <button onClick={() => setSidebarCollapsed(true)} className="hidden md:flex w-7 h-7 border-2 border-border-default items-center justify-center font-black text-text-secondary hover:bg-background-hover transition-colors">‹</button>
+        </div>
       </div>
 
       {/* Search shortcut */}
@@ -130,8 +142,8 @@ export default function Sidebar() {
 
       {/* Quick nav */}
       <nav className="px-3 pb-3 flex flex-col gap-1 shrink-0">
-        <NavItem label="My Tasks" active={mode === 'my-tasks' && !isSettingsView} onClick={() => { setMode('my-tasks'); setSelectedProjectId(null); setView('list'); }} />
-        <NavItem label="Activity"  active={mode === 'activity' && !isSettingsView} onClick={() => { setMode('activity');  setSelectedProjectId(null); setView('list'); }} />
+        <NavItem label="My Tasks" active={mode === 'my-tasks' && !isSettingsView} onClick={() => { setMode('my-tasks'); setSelectedProjectId(null); setView('list'); closeMobileDrawer(); }} />
+        <NavItem label="Activity"  active={mode === 'activity' && !isSettingsView} onClick={() => { setMode('activity');  setSelectedProjectId(null); setView('list'); closeMobileDrawer(); }} />
       </nav>
 
       <div className="h-0.5 bg-border-default mx-3 mb-3 shrink-0 opacity-10" />
@@ -155,7 +167,7 @@ export default function Sidebar() {
                       className={`group/proj flex items-center gap-1.5 px-2 py-2 border-2 cursor-pointer transition-all duration-100
                         ${isSelected ? 'border-border-default bg-[#10b981]/10 shadow-neo-sm' : 'border-transparent hover:border-border-default hover:bg-background-hover'}
                         ${snapshot.isDraggingOver ? 'ring-2 ring-inset ring-[#10b981] bg-[#10b981]/20' : ''}`}
-                      onClick={() => { setSelectedProjectId(p.id); setSelectedGroupId(null); setMode('project'); setView('list'); }}
+                      onClick={() => { setSelectedProjectId(p.id); setSelectedGroupId(null); setMode('project'); setView('list'); closeMobileDrawer(); }}
                     >
                       <button onClick={e => toggleExpand(p.id, e)} className={`w-4 h-4 flex items-center justify-center text-[10px] font-black text-text-secondary transition-transform duration-150 shrink-0 ${isExpanded ? 'rotate-90' : ''}`}>▶</button>
                       <span className="flex-1 text-sm font-bold truncate text-text-primary">{p.name}</span>
@@ -191,7 +203,7 @@ export default function Sidebar() {
       {/* Footer */}
       <div className="shrink-0 border-t-2 border-border-default p-3 bg-background-surface">
         <button
-          onClick={() => setView('settings')}
+          onClick={() => { setView('settings'); closeMobileDrawer(); }}
           className={`w-full flex items-center justify-between p-2 rounded-md transition-all border-2 group ${
             isSettingsView ? 'border-border-default bg-[#10b981]/10 shadow-neo-sm text-text-primary' : 'border-transparent text-text-muted hover:bg-background-hover'
           }`}

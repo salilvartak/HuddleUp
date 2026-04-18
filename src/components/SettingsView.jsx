@@ -55,9 +55,9 @@ export default function SettingsView() {
   return (
     <div className="flex-1 flex flex-col bg-background-primary h-full overflow-hidden">
       {/* Header */}
-      <div className="h-14 shrink-0 border-b-2 border-border-default flex items-center justify-between px-6 bg-background-surface">
+      <div className="h-14 shrink-0 border-b-2 border-border-default flex items-center justify-between px-4 md:px-6 bg-background-surface">
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={() => setView('list')}
             className="text-text-muted hover:text-text-primary transition-colors pr-2"
           >
@@ -67,16 +67,38 @@ export default function SettingsView() {
         </div>
       </div>
 
+      {/* Mobile: horizontal tab bar */}
+      <div className="md:hidden flex border-b-2 border-border-default bg-background-surface overflow-x-auto shrink-0">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 min-w-[70px] flex flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-black uppercase tracking-wide transition-all border-b-2 -mb-[2px] whitespace-nowrap
+              ${activeTab === tab.id ? 'border-text-primary text-text-primary' : 'border-transparent text-text-muted'}`}
+          >
+            <span>{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+        <button
+          onClick={() => setShowLogoutConfirm(true)}
+          className="flex-1 min-w-[70px] flex flex-col items-center gap-1 px-2 py-2.5 text-[10px] font-black uppercase tracking-wide text-red-500 whitespace-nowrap border-b-2 border-transparent -mb-[2px]"
+        >
+          <span>↪</span>
+          Sign Out
+        </button>
+      </div>
+
       <div className="flex-1 flex overflow-hidden">
-        {/* Settings Sidebar */}
-        <div className="w-56 border-r-2 border-border-default bg-background-surface flex flex-col p-4 gap-1">
+        {/* Settings Sidebar (desktop only) */}
+        <div className="hidden md:flex w-56 border-r-2 border-border-default bg-background-surface flex-col p-4 gap-1">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-bold transition-all ${
-                activeTab === tab.id 
-                  ? 'bg-text-primary text-background-primary shadow-neo-sm' 
+                activeTab === tab.id
+                  ? 'bg-text-primary text-background-primary shadow-neo-sm'
                   : 'text-text-secondary hover:bg-background-hover'
               }`}
             >
@@ -96,7 +118,7 @@ export default function SettingsView() {
         </div>
 
         {/* Settings Content */}
-        <div className="flex-1 overflow-y-auto p-8 lg:p-12">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 pb-20 md:pb-8">
           <div className="max-w-2xl mx-auto">
             {activeTab === 'profile' && (
               <div className="flex flex-col gap-8">

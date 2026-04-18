@@ -132,6 +132,19 @@ function WorkspaceOnboarding({ user, onCreated }) {
   );
 }
 
+function MobileNavBtn({ icon, label, active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-xs font-black transition-colors
+        ${active ? 'text-[#10b981] bg-[#10b981]/10' : 'text-text-muted hover:text-text-primary hover:bg-background-hover'}`}
+    >
+      <span className="text-base leading-none">{icon}</span>
+      <span className="text-[10px] uppercase tracking-wide">{label}</span>
+    </button>
+  );
+}
+
 export default function App() {
   const {
     user,
@@ -142,7 +155,14 @@ export default function App() {
     refreshData,
     showSearch,
     setShowSearch,
-    view
+    view,
+    mode,
+    mobileSidebarOpen,
+    setMobileSidebarOpen,
+    setMode,
+    setSelectedProjectId,
+    setView,
+    openCreatePanel,
   } = useAppContext();
 
   // Global Cmd+K / Ctrl+K shortcut
@@ -269,13 +289,50 @@ export default function App() {
     <TasksProvider>
       <GlobalDragDrop>
         <div className="flex h-screen bg-background-primary text-text-primary overflow-hidden font-sans">
-          <Sidebar />
-          
-          {isSettings ? (
-            <SettingsView />
-          ) : (
-            <MainContent />
+          {/* Mobile sidebar backdrop */}
+          {mobileSidebarOpen && (
+            <div
+              className="md:hidden fixed inset-0 bg-black/50 backdrop-blur-[1px] z-[55]"
+              onClick={() => setMobileSidebarOpen(false)}
+            />
           )}
+
+          <Sidebar />
+
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            {isSettings ? (
+              <SettingsView />
+            ) : (
+              <MainContent />
+            )}
+
+            {/* Mobile bottom navigation */}
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-background-surface border-t-2 border-border-default flex items-stretch z-[50] shrink-0">
+              <MobileNavBtn
+                icon="☰"
+                label="Menu"
+                active={mobileSidebarOpen}
+                onClick={() => setMobileSidebarOpen(s => !s)}
+              />
+              <MobileNavBtn
+                icon="✓"
+                label="My Tasks"
+                active={mode === 'my-tasks' && view !== 'settings'}
+                onClick={() => { setMode('my-tasks'); setSelectedProjectId(null); setView('list'); setMobileSidebarOpen(false); }}
+              />
+              <MobileNavBtn
+                icon="+"
+                label="New Task"
+                onClick={() => { openCreatePanel('task'); setMobileSidebarOpen(false); }}
+              />
+              <MobileNavBtn
+                icon="⚙"
+                label="Settings"
+                active={view === 'settings'}
+                onClick={() => { setView('settings'); setMobileSidebarOpen(false); }}
+              />
+            </nav>
+          </div>
 
           {activeTaskId && <TaskModal />}
           {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}

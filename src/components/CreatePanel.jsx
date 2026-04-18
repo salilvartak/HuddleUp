@@ -24,8 +24,15 @@ export default function CreatePanel() {
     }
   }, [createPanelConfig, preselectedGroupId, groups]);
 
+  const [isMobile, setIsMobile] = React.useState(() => window.innerWidth < 768);
   const [width, setWidth] = useState(window.innerWidth < 1024 ? Math.min(window.innerWidth, 480) : 480);
   const [isResizing, setIsResizing] = useState(false);
+
+  React.useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const startResizing = React.useCallback((e) => {
     setIsResizing(true);
@@ -96,23 +103,31 @@ export default function CreatePanel() {
   const inputCls = "w-full bg-background-surface border-2 border-border-default px-3 py-2 text-sm font-semibold text-text-primary outline-none focus:shadow-neo transition-all placeholder:text-text-faint";
 
   return (
-    <div className={`fixed inset-0 z-[150] flex justify-end ${isResizing ? 'cursor-col-resize select-none' : ''}`}>
+    <div className={`fixed inset-0 z-[150] ${isMobile ? 'flex flex-col justify-end' : 'flex justify-end'} ${isResizing ? 'cursor-col-resize select-none' : ''}`}>
       <div className="absolute inset-0 bg-[#1a1a1a]/30" onClick={closeCreatePanel} />
 
-      {/* Resize Handle */}
-      <div
-        onMouseDown={startResizing}
-        className="absolute bottom-0 top-0 w-1.5 cursor-col-resize hover:bg-accent-green/50 transition-colors z-[160]"
-        style={{ right: width }}
-      />
+      {/* Resize Handle (desktop only) */}
+      {!isMobile && (
+        <div
+          onMouseDown={startResizing}
+          className="absolute bottom-0 top-0 w-1.5 cursor-col-resize hover:bg-accent-green/50 transition-colors z-[160]"
+          style={{ right: width }}
+        />
+      )}
 
-      <div 
-        className="relative bg-background-surface border-l-2 border-border-default h-screen flex flex-col animate-slide-in shadow-[-6px_0px_0px_var(--shadow-color)]"
-        style={{ width: `${width}px` }}
+      <div
+        className={`relative bg-background-surface flex flex-col shadow-[-6px_0px_0px_var(--shadow-color)]
+          ${isMobile
+            ? 'w-full h-[90vh] border-t-2 border-border-default animate-slide-up'
+            : 'border-l-2 border-border-default h-screen animate-slide-in'
+          }`}
+        style={isMobile ? undefined : { width: `${width}px` }}
       >
         <style>{`
           @keyframes slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
           .animate-slide-in { animation: slide-in 0.25s ease-out; }
+          @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+          .animate-slide-up { animation: slide-up 0.3s ease-out; }
         `}</style>
 
         <header className="h-14 border-b-2 border-border-default flex items-center justify-between px-6 bg-background-surface shrink-0">

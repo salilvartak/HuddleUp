@@ -43,6 +43,9 @@ export const AppProvider = ({ children }) => {
 
   const toggleTheme = () => setIsDark(d => !d);
 
+  // ── Mobile sidebar ────────────────────────────────────────────────────────
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
   // ── Search modal ───────────────────────────────────────────────────────────
   const [showSearch, setShowSearch] = useState(false);
 
@@ -320,6 +323,8 @@ export const AppProvider = ({ children }) => {
     loadingMembers,
     inviteMember,
     removeMember,
+    mobileSidebarOpen,
+    setMobileSidebarOpen,
     currentUserRole: members.find(m => m.user_id === user?.$id)?.role?.toLowerCase() || 'member',
     canEdit: members.length === 0 || (members.find(m => m.user_id === user?.$id)?.role?.toLowerCase() !== 'viewer'),
   };
