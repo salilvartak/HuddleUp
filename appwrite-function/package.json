@@ -1,0 +1,10 @@
+{
+  "name": "huddleup-email-notifications",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Sends email notifications via Resend when a notification document is created",
+  "main": "index.js",
+  "dependencies": {
+    "node-appwrite": "^14.0.0"
+  }
+}

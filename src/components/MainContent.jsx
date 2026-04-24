@@ -3,6 +3,7 @@ import { useAppContext } from '../context/AppContext';
 import { useTasksContext } from '../context/TasksContext';
 import ListView from './ListView';
 import KanbanView from './KanbanView';
+import NotificationPanel from './NotificationPanel';
 import { STATUSES, PRIORITIES } from '../data/constants';
 
 export default function MainContent() {
@@ -73,6 +74,8 @@ export default function MainContent() {
           >
             ⌕<span className="hidden md:inline text-text-faint ml-1">⌘K</span>
           </button>
+
+          <NotificationPanel />
         </div>
       </header>
 

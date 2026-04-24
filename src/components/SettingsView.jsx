@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import InviteModal from './InviteModal';
 import { Avatar } from './Badges';
-import { User, Building2, Palette, Shield } from 'lucide-react';
+import { User, Building2, Palette, Shield, Bell } from 'lucide-react';
 
 export default function SettingsView() {
-  const { setView, isDark, toggleTheme, setShowInviteModal, showInviteModal, workspace, user, profile, logout, updateProfile, members, loadingMembers, removeMember, refreshData } = useAppContext();
+  const { setView, isDark, toggleTheme, setShowInviteModal, showInviteModal, workspace, user, profile, logout, updateProfile, members, loadingMembers, removeMember, refreshData, notifPrefs, notifPermission, requestPermission, updateNotifPrefs, notify } = useAppContext();
   
   const [activeTab, setActiveTab] = useState('profile');
   const [isSaving, setIsSaving] = useState(false);
@@ -28,10 +28,11 @@ export default function SettingsView() {
   const isAdmin = currentMemberRole === 'admin' || currentMemberRole === 'owner';
 
   const tabs = [
-    { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
-    { id: 'workspace', label: 'Workspace', icon: <Building2 className="w-4 h-4" /> },
-    { id: 'appearance', label: 'Appearance', icon: <Palette className="w-4 h-4" /> },
-    { id: 'security', label: 'Security', icon: <Shield className="w-4 h-4" /> },
+    { id: 'profile',       label: 'Profile',        icon: <User className="w-4 h-4" />     },
+    { id: 'workspace',     label: 'Workspace',      icon: <Building2 className="w-4 h-4" /> },
+    { id: 'notifications', label: 'Notifications',  icon: <Bell className="w-4 h-4" />     },
+    { id: 'appearance',    label: 'Appearance',     icon: <Palette className="w-4 h-4" />  },
+    { id: 'security',      label: 'Security',       icon: <Shield className="w-4 h-4" />   },
   ];
 
   const handleSaveProfile = async () => {
@@ -278,6 +279,17 @@ export default function SettingsView() {
               </div>
             )}
 
+            {activeTab === 'notifications' && (
+              <NotificationsTab
+                prefs={notifPrefs}
+                permission={notifPermission}
+                requestPermission={requestPermission}
+                updatePrefs={updateNotifPrefs}
+                userEmail={user?.email}
+                notify={notify}
+              />
+            )}
+
             {activeTab === 'security' && (
               <div className="flex flex-col gap-8">
                 <header>
@@ -348,6 +360,184 @@ export default function SettingsView() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Notifications settings tab ───────────────────────────────────────────────
+
+function Toggle({ checked, onChange, disabled }) {
+  return (
+    <button
+      onClick={() => !disabled && onChange(!checked)}
+      disabled={disabled}
+      className={`relative w-11 h-6 border-2 border-border-default transition-colors shrink-0
+        ${checked ? 'bg-[#10b981]' : 'bg-background-elevated'}
+        ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+    >
+      <span
+        className={`absolute top-0.5 w-4 h-4 bg-white border border-border-default transition-transform
+          ${checked ? 'translate-x-[22px]' : 'translate-x-0.5'}`}
+      />
+    </button>
+  );
+}
+
+function SettingRow({ icon, label, description, checked, onChange, disabled }) {
+  return (
+    <div className="flex items-center justify-between p-5 bg-background-surface border-2 border-border-default">
+      <div className="flex items-start gap-3 flex-1 mr-4">
+        <span className="text-lg shrink-0 mt-0.5">{icon}</span>
+        <div>
+          <p className="text-sm font-black text-text-primary">{label}</p>
+          {description && <p className="text-xs font-semibold text-text-faint mt-0.5">{description}</p>}
+        </div>
+      </div>
+      <Toggle checked={checked} onChange={onChange} disabled={disabled} />
+    </div>
+  );
+}
+
+function NotificationsTab({ prefs, permission, requestPermission, updatePrefs, userEmail, notify }) {
+  const [requesting, setRequesting] = React.useState(false);
+  const [testSent, setTestSent]     = React.useState(false);
+
+  const browserBlocked  = permission === 'denied';
+  const browserGranted  = permission === 'granted';
+  const browserDefault  = permission === 'default';
+  const browserUnsupported = typeof Notification === 'undefined';
+
+  const handleRequestPermission = async () => {
+    setRequesting(true);
+    const result = await requestPermission();
+    setRequesting(false);
+    if (result === 'granted') {
+      updatePrefs({ browserEnabled: true });
+    }
+  };
+
+  const handleToggleBrowser = (val) => {
+    if (val && !browserGranted) { handleRequestPermission(); return; }
+    updatePrefs({ browserEnabled: val });
+  };
+
+  const sendTestNotification = () => {
+    notify('Test notification', 'HuddleUp notifications are working!', { type: 'info' });
+    setTestSent(true);
+    setTimeout(() => setTestSent(false), 3000);
+  };
+
+  return (
+    <div className="flex flex-col gap-8">
+      <header>
+        <h2 className="text-2xl font-black text-text-primary">Notifications</h2>
+        <p className="text-text-secondary text-sm font-bold mt-1">Choose how and when you get notified.</p>
+      </header>
+
+      {/* ── Browser notifications ── */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-xs font-black uppercase tracking-widest text-text-faint">Browser Notifications</h3>
+          {browserGranted && (
+            <button
+              onClick={sendTestNotification}
+              className={`text-[10px] font-black uppercase tracking-wide px-3 py-1 border-2 transition-all
+                ${testSent
+                  ? 'border-[#10b981] text-[#10b981] bg-[#10b981]/10'
+                  : 'border-border-default text-text-muted hover:bg-background-hover'}`}
+            >
+              {testSent ? '✓ Sent!' : 'Send test'}
+            </button>
+          )}
+        </div>
+
+        {/* Permission status banner */}
+        {browserUnsupported && (
+          <div className="p-4 bg-amber-500/10 border-2 border-amber-400/40 text-sm font-bold text-amber-700 dark:text-amber-400">
+            ⚠ Your browser doesn't support notifications.
+          </div>
+        )}
+        {browserBlocked && (
+          <div className="p-4 bg-red-500/10 border-2 border-red-400/40 text-sm font-bold text-red-600 dark:text-red-400">
+            🚫 Notifications are blocked. Open your browser's site settings and allow notifications for this site, then reload.
+          </div>
+        )}
+        {browserDefault && !browserUnsupported && (
+          <div className="p-4 bg-blue-500/10 border-2 border-blue-400/40 flex items-center justify-between gap-4">
+            <p className="text-sm font-bold text-blue-700 dark:text-blue-400">
+              Grant permission to enable browser notifications.
+            </p>
+            <button
+              onClick={handleRequestPermission}
+              disabled={requesting}
+              className="shrink-0 px-4 py-2 bg-[#10b981] text-white border-2 border-border-default text-xs font-black uppercase tracking-wider hover:bg-[#0d9468] disabled:opacity-50 transition-colors"
+            >
+              {requesting ? 'Requesting…' : 'Allow'}
+            </button>
+          </div>
+        )}
+
+        <SettingRow
+          icon="🔔"
+          label="Enable browser notifications"
+          description="Get OS-level popups when tasks are assigned or commented on"
+          checked={prefs.browserEnabled && browserGranted}
+          onChange={handleToggleBrowser}
+          disabled={browserBlocked || browserUnsupported}
+        />
+      </section>
+
+      {/* ── Email notifications ── */}
+      <section className="flex flex-col gap-3">
+        <h3 className="text-xs font-black uppercase tracking-widest text-text-faint mb-1">Email Notifications</h3>
+
+        <div className="p-4 bg-background-surface border-2 border-border-default text-xs font-semibold text-text-muted leading-relaxed">
+          Emails are sent to <span className="font-black text-text-primary">{userEmail}</span> via an
+          Appwrite Function. See the setup guide below to enable this.
+        </div>
+
+        <SettingRow
+          icon="✉️"
+          label="Enable email notifications"
+          description="Requires the Appwrite Function to be deployed (see setup guide)"
+          checked={prefs.emailEnabled}
+          onChange={(val) => updatePrefs({ emailEnabled: val })}
+        />
+
+        {prefs.emailEnabled && (
+          <div className="p-4 bg-amber-500/10 border-2 border-amber-400/40 text-xs font-semibold text-amber-700 dark:text-amber-400 leading-relaxed">
+            ⚠ Email delivery requires the Appwrite Function to be deployed. Without it, notifications are queued but not sent.
+            See <span className="font-black">appwrite-function/README.md</span> in the project root for setup instructions.
+          </div>
+        )}
+      </section>
+
+      {/* ── Event toggles ── */}
+      <section className="flex flex-col gap-3">
+        <h3 className="text-xs font-black uppercase tracking-widest text-text-faint mb-1">Notify me when…</h3>
+
+        <SettingRow
+          icon="👤"
+          label="Task assigned to me"
+          description="When someone assigns a task to you"
+          checked={prefs.notifyAssignment}
+          onChange={(val) => updatePrefs({ notifyAssignment: val })}
+        />
+        <SettingRow
+          icon="💬"
+          label="New comment on my task"
+          description="When someone comments on a task you own or are assigned to"
+          checked={prefs.notifyComment}
+          onChange={(val) => updatePrefs({ notifyComment: val })}
+        />
+        <SettingRow
+          icon="📅"
+          label="Task due today or tomorrow"
+          description="Checked once per hour for upcoming due dates"
+          checked={prefs.notifyDueDate}
+          onChange={(val) => updatePrefs({ notifyDueDate: val })}
+        />
+      </section>
     </div>
   );
 }

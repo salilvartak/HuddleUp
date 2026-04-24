@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(node -e \"const {differenceInCalendarDays} = require\\('date-fns'\\); console.log\\(typeof differenceInCalendarDays\\)\")",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(appwrite --version)",
+      "Bash(cat .env)",
+      "Bash(cat .env.local)",
+      "Bash(npm install *)",
+      "Bash(appwrite init *)",
+      "Bash(appwrite push *)",
+      "Bash(appwrite pull *)",
+      "Bash(yes \"\")",
+      "Bash(appwrite functions *)"
     ]
   }
 }
