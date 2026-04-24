@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { databases, DATABASE_ID, COLLECTIONS, client, ID } from '../lib/appwrite';
 import { useAuth, getInitials, createProfileIfNeeded } from '../hooks/useAuth';
-import { useNotifications } from '../hooks/useNotifications';
 import { Query } from 'appwrite';
 
 const AppContext = createContext();
@@ -43,20 +42,6 @@ export const AppProvider = ({ children }) => {
   }, [isDark]);
 
   const toggleTheme = () => setIsDark(d => !d);
-
-  // ── Notifications ─────────────────────────────────────────────────────────
-  const {
-    notifications,
-    unreadCount,
-    prefs:            notifPrefs,
-    permission:       notifPermission,
-    requestPermission,
-    updatePrefs:      updateNotifPrefs,
-    markRead,
-    markAllRead,
-    clearAll:         clearNotifications,
-    notify,
-  } = useNotifications(user);
 
   // ── Mobile sidebar ────────────────────────────────────────────────────────
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -340,17 +325,6 @@ export const AppProvider = ({ children }) => {
     removeMember,
     mobileSidebarOpen,
     setMobileSidebarOpen,
-    // Notifications
-    notifications,
-    unreadCount,
-    notifPrefs,
-    notifPermission,
-    requestPermission,
-    updateNotifPrefs,
-    markRead,
-    markAllRead,
-    clearNotifications,
-    notify,
     currentUserRole: members.find(m => m.user_id === user?.$id)?.role?.toLowerCase() || 'member',
     canEdit: members.length === 0 || (members.find(m => m.user_id === user?.$id)?.role?.toLowerCase() !== 'viewer'),
   };

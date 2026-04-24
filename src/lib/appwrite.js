@@ -22,8 +22,7 @@ export const COLLECTIONS = {
     TASKS: 'tasks',
     COMMENTS: 'comments',
     ACTIVITY: 'activity',
-    ATTACHMENTS: 'attachments',
-    NOTIFICATIONS: 'notifications',
+    ATTACHMENTS: 'attachments'
 };
 
 export { client, ID };
